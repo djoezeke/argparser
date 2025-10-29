@@ -1,79 +1,85 @@
-/* -*- C++ -*- compatibility header. */
-
 /**
  * @file argparser.h
  * @brief Argument Parser Library header for C/C++.
  * @details This header provides all public API, types, macros, and configuration
  * for parsing command line argument and supports both C and C++ usage.
  * @author Sackey Ezekiel Etrue (djoezeke)
- * @date Wed 01 12:52:15 Oct GMT 2025
+ * @date Tue 29 10:45:19 Oct GMT 2025
  * @version 0.1.0
  * @see https://www.github.com/djoezeke/argparser
  * @copyright Copyright (c) 2025 Sackey Ezekiel Etrue
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ * ARGPARSER: What Argparser Is
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ * DOCUMENTATION:
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * FEATURES:
  *
- * Do this:
- *  #define ARGPARSER_IMPLEMENTATION
- * before you include this file in *one* C or C++ file to create the implementation.
+ * FUTURE:
  *
- * i.e. it should look like this:
+ * ISSUES:
  *
- * #include ...
- * #include ...
- * #define ARGPARSER_IMPLEMENTATION
- * #include "argparser.h"
+ * NOTES:
+ *
+ * USAGE:
+ *
+ *   Include this file in whatever places need to refer to it.
+ *
+ *   Do this:
+ *      #define ARGPARSER_IMPLEMENTATION
+ *
+ *   before you include this file in *one* C or C++ file to create the implementation.
+ *
+ *   i.e. it should look like this:
+ *
+ *      #include ...
+ *      #include ...
+ *      #define ARGPARSER_IMPLEMENTATION
+ *      #include "argparser.h"
+ *
+ *  Header-file Mode:
+ *
+ *  Implementation Mode:
+ *
  *
  * Example usage:
  * @code
  * int main(int argc, char *argv[]) {
- *     Argparser *parser = new_parser("my_program", "Usage: my_program
- * [options]", "This is a sample program.", "Epilog message", 1);
- *     argparser_add_argument(parser, 'o', "output", 1, 1, "default_output.txt", "Output
- * file"); argparser_add_kwarg(parser, 'v', "verbose", 0, "false", "Enable verbose mode");
- *     argparser_add_flag(parser, 'h', "help", "Show help message");
- *
- *     argparser_parse_args(parser, argc, argv);
- *
- *     const char *output = argparser_get_arg(parser, "output");
- *     const char *verbose = argparser_get_kwarg(parser, "verbose");
- *     int help = argparser_get_flag(parser, "help");
- *
- *     if (help) {
- *         argparser_print_help(parser);
- *         argparser_delete(parser);
- *         return 0;
- *     }
- *
- *     printf("Output: %s\n", output);
- *     printf("Verbose: %s\n", verbose);
- *
- *     argparser_delete(parser);
  *     return 0;
  * }
  * @endcode
  *
- * Index of this file:
+ * FAQS:
+ *
+ * TODO:
+ *
+ * HELP:
+ *    - See links below.
+ *    - Read top of argparser.c for more details and comments.
+ *
+ *  Has only had a few tests run, may have issues.
+ *
+ *  If having issues compiling/linking/running raise an issue (https://github.com/djoezeke/argparser/issues).
+ *  Please post in https://github.com/djoezeke/argparser/discussions if you cannot find a solution in resources above.
+ *
+ * RESOURCES:
+ * - Homepage ................... https://github.com/djoezeke/argparser
+ * - Releases & changelog ....... https://github.com/djoezeke/argparser/releases
+ * - Issues & support ........... https://github.com/djoezeke/argparser/issues
+ *
+ * LICENSE:
+ *      See end of file for license information.
+ *
+ */
+
+#ifndef DJOEZEKE_ARGPARSER_H
+
+/**
+ *
+ * SECTIONS: Index of this file
  *
  *  [SECTION] Header mess
  *  [SECTION] Configurable macros
- *  [SECTION] Platform Defines
  *  [SECTION] Compiler Defines
  *  [SECTION] Compiler Warnings
  *  [SECTION] Imports/Exports
@@ -83,7 +89,7 @@
  *
  * ARGPARSER_IMPLEMENTATION
  *
- *  Internal:
+ *  INTERNAL:
  *
  *  [SECTION] Macro Defines
  *  [SECTION] Data Structures
@@ -94,21 +100,14 @@
  *    - [SECTION] Declarations
  *    - [SECTION] Definations
  *
- *  Argparser:
+ *  ARGPARSER:
  *
  *  [SECTION] C Only Functions
  *  [SECTION] C++ Only Classes
  *
- *
- * Resources:
- * - Homepage ................... https://github.com/djoezeke/argparser
- * - Releases & changelog ....... https://github.com/djoezeke/argparser/releases
- * - Issues & support ........... https://github.com/djoezeke/argparser/issues
- *
  */
 
-#ifndef ARGPARSER_H
-#define ARGPARSER_H
+#define DJOEZEKE_ARGPARSER_H
 
 // clang-format off
 
@@ -209,71 +208,6 @@
 
 #define ARGPARSER_SUCCESS 1
 #define ARGPARSER_FAILURE 0
-
-//-----------------------------------------------------------------------------
-// [SECTION] Platform
-//-----------------------------------------------------------------------------
-
-/**
- * @defgroup platform Platform Definitions
- * @{
- */
-
-/**
- * @brief   Checks if the compiler is of given brand.
- * @param   name Platform, like `APPLE`.
- * @retval  true   It is.
- * @retval  false  It isn't.
- */
-#define ARGPARSER_PLATFORM_IS(name) ARGPARSER_PLATFORM_IS_##name
-
-/**
- * @brief  Returns the current platform name.
- * @return  platform name.
- */
-#ifdef __APPLE__
-	/**
-	* A preprocessor macro that is only defined if compiling for MacOS.
-	*/
-	#define ARGPARSER_PLATFORM_IS_APPLE 1
-	/**
-	 * @brief  Returns the current platform name.
-	 * @return  platform name.
-	 */
-  #define ARGPARSER_PLATFORM_NAME_IS "Apple"
-#elif defined(linux) || defined(__linux) || defined(__linux__)
-	/**
-	* A preprocessor macro that is only defined if compiling for Linux.
-	*/
-	#define ARGPARSER_PLATFORM_IS_LINUX 1
-  	/**
-   	* @brief  Returns the current platform name.
-   	* @return  platform name.
-   	*/
-  	#define ARGPARSER_PLATFORM_NAME_IS "Linux"
-#elif defined(WIN32) || defined(__WIN32__) || defined(_WIN32) || defined(_MSC_VER) || defined(__MINGW32__)
-  	/**
-   	* A preprocessor macro that is only defined if compiling for Windows.
-   	*/
-  	#define ARGPARSER_PLATFORM_IS_WINDOWS 1
-  	/**
-   	* @brief  Returns the current platform name.
-   	* @return  platform name.
-   	*/
-  	#define ARGPARSER_PLATFORM_NAME_IS "Windows"
-#else
-  	/**
-   	* A preprocessor macro that is only defined if compiling for others.
-   	*/
-  	#define ARGPARSER_PLATFORM_IS_OTHERS 1
-  	/**
-   	* @brief  Returns the current platform name.
-   	* @return  platform name.
-   	*/
-  	#define ARGPARSER_PLATFORM_NAME_IS "Others"
-#endif
-
-/** @} */
 
 //-----------------------------------------------------------------------------
 // [SECTION] Compiler
@@ -1038,10 +972,16 @@ namespace argparser
 
 #pragma endregion // Cpp
 
-#endif // ARGPARSER_H
+#endif // DJOEZEKE_ARGPARSER_H
 
 #pragma region Implementation
 
+/**
+ *
+ * implementation isn't include-guarded, since it might have indirectly
+ * included just the "header" portion
+ *
+ */
 #ifdef ARGPARSER_IMPLEMENTATION
 
 #pragma region Internal
@@ -1327,6 +1267,31 @@ namespace argparser
 
 #pragma endregion // Argparser
 
+#pragma endregion // Implementation
+
 #endif // ARGPARSER_IMPLEMENTATION
 
-#pragma endregion // Implementation
+/**
+ * LICENSE: MIT License
+ *
+ * Copyright (c) 2025 Sackey Ezekiel Etrue
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
