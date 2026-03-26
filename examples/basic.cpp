@@ -1,31 +1,42 @@
-#define ARGPARSER_IMPLEMENTATION
-#include "../argparser.h"
+#include <iostream>
 
-int main(int argc, char const *argv[])
+#include "../argparser.hpp"
+
+int main(int argc, char **argv)
 {
+    argparser::ArgumentParser parser("basic", "Header-only C++ parser with Python-style API");
+    parser.add_argument("input").help("input file path");
+    parser.add_argument("-v", "--verbose").action("store_true").help("enable verbose output");
+    parser.add_argument("-n", "--number").default_value(1).help("repeat count");
+    parser.add_argument("-t", "--tag").action("append").help("add a tag (repeatable)");
+
+    try
+    {
+        const auto &ns = parser.parse_args(argc, argv);
+        std::cout << "input=" << ns.get<std::string>("input") << "\n";
+        std::cout << "verbose=" << (ns.get<bool>("verbose") ? "true" : "false") << "\n";
+        std::cout << "number=" << ns.get<int>("number") << "\n";
+
+        if (ns.provided("tag"))
+        {
+            const auto tags = ns.get_list<std::string>("tag");
+            for (const auto &tag : tags)
+            {
+                std::cout << "tag=" << tag << "\n";
+            }
+        }
+    }
+    catch (const argparser::HelpRequested &)
+    {
+        parser.print_help();
+        return 0;
+    }
+    catch (const std::exception &ex)
+    {
+        std::cerr << ex.what() << "\n\n";
+        parser.print_help(std::cerr);
+        return 1;
+    }
+
     return 0;
 }
-
-/**
- * LICENSE: Public Domain (www.unlicense.org)
- *
- * Copyright (c) 2025 Sackey Ezekiel Etrue
- *
- * This is free and unencumbered software released into the public domain.
- * Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
- * software, either in source code form or as a compiled binary, for any purpose,
- * commercial or non-commercial, and by any means.
- * In jurisdictions that recognize copyright laws, the author or authors of this
- * software dedicate any and all copyright interest in the software to the public
- * domain. We make this dedication for the benefit of the public at large and to
- * the detriment of our heirs and successors. We intend this dedication to be an
- * overt act of relinquishment in perpetuity of all present and future rights to
- * this software under copyright law.
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
- * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
- */

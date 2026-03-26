@@ -30,16 +30,16 @@
 
 ## 📍 Overview
 
-`Argparser` is a lightweight and feature-rich command-line argument parsing library for C/C++.
-It offers a modern and intuitive interface allowing for straightforward argument configuration and parsing.
+`Argparser` is a single-file, header-only C++ argument parsing library inspired by Python's `argparse`.
+It offers a modern and intuitive API for declaring arguments with `add_argument(...)`, parsing CLI input, and printing help text.
 
 ## ✨ Features
 
-- Parse keyword arguments
-- Parse positional arguments
-- Parse flags
-- Set default values for arguments
-- Print help messages
+- Header-only C++ (single include)
+- Python-style `add_argument` API
+- Positional + optional arguments
+- Actions: `store_true`, `store_false`, `append`, `count`
+- Default values, required args, and formatted help messages
 
 Argparser distinguishes 3 different types of arguments:
 
@@ -69,10 +69,10 @@ Argparser distinguishes 3 different types of arguments:
 
 ### ⚙️ Installation
 
-To use Argparser in your project, simply include the `Argparser.h` header file in your source files.
+To use Argparser in your project, include the single header:
 
 ```cpp
-#include "Argparser.h"
+#include "argparser.hpp"
 ```
 
 ### 🤖 Usage
@@ -120,38 +120,26 @@ To use Argparser in your project, simply include the `Argparser.h` header file i
 *    [License](#license)
 -->
 
-```c
-#include "Argparser.h"
+```cpp
+#include "argparser.hpp"
 
-int main(int argc, char *argv[])
-{
-    ArgumentParser parser;
+int main(int argc, char **argv) {
+   argparser::ArgumentParser parser("sample", "Python-style argparse for C++");
+   parser.add_argument("input").help("input file");
+   parser.add_argument("-v", "--verbose").action("store_true");
+   parser.add_argument("-n", "--number").default_value(1);
 
-    init_parser(&parser, NULL, NULL, NULL, NULL, 1);
+   try {
+      const auto& ns = parser.parse_args(argc, argv);
+      auto input = ns.get<std::string>("input");
+      auto verbose = ns.get<bool>("verbose");
+      auto number = ns.get<int>("number");
+      (void)input; (void)verbose; (void)number;
+   } catch (const argparser::HelpRequested&) {
+      parser.print_help();
+   }
 
-    add_flag(&parser, 'v', "verbose", "Enable verbose mode");
-    add_flag(&parser, 's', "store", "Save file Name");
-    add_kwarg(&parser, 'c', "count", 0, NULL, "Number of times");
-
-    parse_args(&parser, argc, argv);
-
-    int verbose = get_flag(&parser, "verbose");
-    int store = get_flag(&parser, "store");
-    int help = get_flag(&parser, "help");
-    const char *count = get_kwarg(&parser, "count");
-
-    if (help)
-        print_help(&parser, 1, 1, 1, 1);
-    if (count)
-        printf("Count: %s\n", count);
-    if (store)
-        printf("Store: %d\n", store);
-    if (verbose)
-        printf("Verbose: %d\n", verbose);
-
-    free_parser(&parser);
-
-    return 0;
+   return 0;
 }
 ```
 

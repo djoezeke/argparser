@@ -16,6 +16,8 @@ project(argparser
         LANGUAGES  C CXX
         )
 
+include(GNUInstallDirs)
+
 #--------------------------------------------------------------------
 # Preparations depending on the specified build options  
 #--------------------------------------------------------------------
@@ -85,7 +87,7 @@ add_library(Argparser::Argparser ALIAS Argparser)
 target_include_directories(Argparser 
     INTERFACE 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-        $<INSTALL_INTERFACE:>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 #--------------------------------------------------------------------
@@ -112,7 +114,7 @@ if(ARGPARSER_BUILD_TESTS)
     # if the target compiler is some version of Microsoft Visual C++ and
     # if this project is the main project.
     if(MSVC AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-        set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ARGPARSERUnitTest)
+      set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT argparser_tests)
     endif()
 endif()
 
@@ -134,14 +136,19 @@ configure_package_config_file(
 #--------------------------------------------------------------------
 
 if(ARGPARSER_ENABLE_INSTALL)
-
-	include(GNUInstallDirs)
-
 	install(TARGETS Argparser EXPORT ArgparserTargets)
 
-    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-		DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-	)
+  install(FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/argparser.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  )
+
+  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/argparser.h)
+    install(FILES
+      ${CMAKE_CURRENT_SOURCE_DIR}/argparser.h
+      DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+  endif()
 
 	install(EXPORT ArgparserTargets
 		FILE ArgparserTargets.cmake
