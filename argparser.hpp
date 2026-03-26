@@ -1,40 +1,241 @@
-#pragma once
+/**
+ * @file argparser.hpp
+ * @brief Modern Argument Parser for C/C++.
+ * @details All public API, types, macros, and configuration.
+ * @author Sackey Ezekiel Etrue (djoezeke)
+ * @version 0.1.0
+ * @see https://www.github.com/djoezeke/argparser
+ * @copyright Copyright (c) 2025 Sackey Ezekiel Etrue
+ *
+ * Developed by Sackey Ezekiel Etrue and every direct or indirect contributors.
+ * See LICENSE for copyright and licensing details (standard MIT License).
+ *
+ * ARGPARSER: What is `argparser` ?
+ *
+ *      argparser is a modern C/C++ library for Commandline Argument Parsing.
+ *
+ *      MISSION:
+ *
+ *          - Easy to hack and improve.
+ *          - Minimize setup and maintenance.
+ *          - Efficient runtime and memory consumption.
+ *
+ *
+ *          Designed primarily for developers and not the typical end-user!
+ *
+ *      DESIGN: Design Goals
+ *
+ *          PERFORMANCE FOCUSED :
+ *              - Minimize memory allocations and copies.
+ *              - Optimize for speed and low latency.
+ *
+ *          WELL DOCUMENTED :
+ *              - Comprehensive API documentation.
+ *              - Code comments and examples.
+ *
+ *          HEAVILY TESTED :
+ *              - Unit tests for all features.
+ *              - Integration tests for all components.
+ *              - Performance tests for critical paths.
+ *
+ *          PORTABLE :
+ *              - Cross-platform compatibility.
+ *              - Support for various compilers and platforms.
+ *
+ *      FEATURES:
+ *
+ *          Brief overview of the features provided:
+ *
+ *          GENERAL :
+ *
+ *          STANDARD :
+ *
+ * NOTES:
+ *
+ * USAGE:
+ *
+ * FAQS:
+ *
+ * HELP:
+ *    - See links below.
+ *    - Read top of argparser.cpp for more details and comments.
+ *
+ *  Has only had a few tests run, may have issues.
+ *
+ *  If having issues compiling/linking/running raise an issue (https://github.com/djoezeke/argparser/issues).
+ *  Please post in https://github.com/djoezeke/argparser/discussions if you cannot find a solution.
+ *
+ * RESOURCES:
+ *
+ * - Homepage ................... https://github.com/djoezeke/argparser
+ * - Releases & changelog ....... https://github.com/djoezeke/argparser/releases
+ * - Issues & support ........... https://github.com/djoezeke/argparser/issues
+ *
+ * LICENSE: MIT License
+ *      See end of file for license information.
+ *
+ */
 
-#include <algorithm>
-#include <cctype>
-#include <cstdlib>
-#include <initializer_list>
-#include <iostream>
+#ifndef DJOEZEKE_ARGPARSER_HPP
+
+/**
+ * SECTIONS: Index of this file
+ *
+ *  [SECTION] Include Mess
+ *  [SECTION] Configurations
+ *
+ */
+
+#define DJOEZEKE_ARGPARSER_HPP
+
+// clang-format off
+
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+    #define _CRT_SECURE_NO_WARNINGS
+#endif
+
+#ifndef ARGPARSER_SKIP_VERSION_CHECK
+    #if defined(ARGPARSER_VERSION_MAJOR) && defined(ARGPARSER_VERSION_MINOR) && defined(ARGPARSER_VERSION_PATCH)
+        #if ARGPARSER_VERSION_MAJOR != 1 || ARGPARSER_VERSION_MINOR != 0 || ARGPARSER_VERSION_PATCH != 0
+            #warning "Already included a different version of the library!"
+        #endif
+    #endif
+#endif // ARGPARSER_SKIP_VERSION_CHECK
+
+/**
+ * @defgroup version version Information
+ * @brief Macros for library versioning.
+ * @{
+ */
+
+/**
+ * @def ARGPARSER_VERSION_MAJOR
+ * @brief Major version number of the library.
+ * @note If this were version 1.2.3, this value would be 1.
+ * @since This macro is available since 0.1.0 .
+ */
+#ifndef ARGPARSER_VERSION_MAJOR
+    #define ARGPARSER_VERSION_MAJOR 0
+#endif // ARGPARSER_VERSION_MAJOR
+
+/**
+ * @def ARGPARSER_VERSION_MINOR
+ * @brief Minor version number of the library.
+ * @note If this were version 1.2.3, this value would be 2.
+ * @since This macro is available since 0.1.0 .
+ */
+#ifndef ARGPARSER_VERSION_MINOR
+    #define ARGPARSER_VERSION_MINOR 1
+#endif // ARGPARSER_VERSION_MINOR
+
+/**
+ * @def ARGPARSER_VERSION_PATCH
+ * @brief Patch version number of the library.
+ * @note If this were version 1.2.3, this value would be 3.
+ * @since This macro is available since 0.1.0 .
+ */
+#ifndef ARGPARSER_VERSION_PATCH
+    #define ARGPARSER_VERSION_PATCH 0
+#endif // ARGPARSER_VERSION_PATCH
+
+/**
+ * @def ARGPARSER_VERSION
+ * @brief Library version string in the format @c "X.Y.Z",
+ * where @c X is the major version number, @c Y is a minor version
+ * number, and @c Z is the patch version number.
+ * @sa MyGetVersion
+ */
+#ifndef ARGPARSER_VERSION
+    #define ARGPARSER_VERSION "0.1.0"
+#endif // ARGPARSER_VERSION
+
+/** @} */
+
+//-----------------------------------------------------------------------------
+// [SECTION] Include Mess
+//-----------------------------------------------------------------------------
+
 #include <limits>
-#include <optional>
-#include <sstream>
-#include <stdexcept>
+#include <cctype>
 #include <string>
+#include <vector>
+#include <cstdlib>
+#include <sstream>
+#include <utility>
+#include <iostream>
+#include <optional>
+#include <algorithm>
+#include <stdexcept>
 #include <type_traits>
 #include <unordered_map>
-#include <utility>
-#include <vector>
+#include <initializer_list>
+
+//-----------------------------------------------------------------------------
+// [SECTION] Configurations
+//-----------------------------------------------------------------------------
+
+/**
+ * @defgroup configuration Library Configurations.
+ * @brief Preprocessor macros for configuring library functionality.
+ * @{
+ */
+
+/**
+ * @brief Configure file with user config.
+ */
+#ifdef ARGPARSER_CONFIG
+    #include ARGPARSER_CONFIG
+#endif // ARGPARSER_CONFIG
+
+/** @} */
+
+// clang-format on
 
 namespace argparser
 {
 
-    class ArgumentParserError : public std::runtime_error
+    namespace detail
+    {
+    }
+
+#ifndef ARGPARSER_NO_EXCEPTIONS
+
+    class Error : public std::runtime_error
     {
     public:
-        explicit ArgumentParserError(const std::string &message)
-            : std::runtime_error(message)
-        {
-        }
+        explicit Error(const std::string &message)
+            : std::runtime_error(message) {};
     };
 
-    class HelpRequested : public std::runtime_error
+    class ParseError : public Error
     {
     public:
-        HelpRequested()
-            : std::runtime_error("help requested")
-        {
-        }
+        ParseError(const std::string &message)
+            : Error(message) {};
     };
+
+    class UsageError : public Error
+    {
+    public:
+        UsageError(const std::string &message)
+            : Error(message) {};
+    };
+
+    class RequiredError : public Error
+    {
+    public:
+        RequiredError(const std::string &message)
+            : Error(message) {};
+    };
+
+    class HelpError : public Error
+    {
+    public:
+        HelpError()
+            : Error("help requested") {};
+    };
+
+#endif // ARGPARSER_NO_EXCEPTIONS
 
     class Namespace
     {
@@ -55,7 +256,7 @@ namespace argparser
             const auto it = m_Data.find(name);
             if (it == m_Data.end())
             {
-                throw ArgumentParserError("unknown argument: " + name);
+                throw ParseError("unknown argument: " + name);
             }
             return it->second;
         }
@@ -207,7 +408,7 @@ namespace argparser
                 }
                 else
                 {
-                    throw ArgumentParserError("unknown action: " + name);
+                    throw Error("unknown action: " + name);
                 }
                 return *this;
             }
@@ -238,7 +439,7 @@ namespace argparser
                 }
                 else
                 {
-                    throw ArgumentParserError("unknown nargs pattern");
+                    throw ParseError("unknown nargs pattern");
                 }
                 return *this;
             }
@@ -652,7 +853,7 @@ namespace argparser
             const auto it = m_OptionLookup.find(name);
             if (it == m_OptionLookup.end())
             {
-                throw ArgumentParserError("unrecognized argument: " + name);
+                throw ParseError("unrecognized argument: " + name);
             }
             return m_Arguments[it->second];
         }
@@ -664,7 +865,7 @@ namespace argparser
             switch (arg.m_Action)
             {
             case Argument::ActionType::Help:
-                throw HelpRequested();
+                throw HelpError();
             case Argument::ActionType::StoreTrue:
                 arg.m_Values = {"true"};
                 return;
@@ -708,7 +909,7 @@ namespace argparser
             {
                 if (index + 1 >= argc)
                 {
-                    throw ArgumentParserError("argument requires a value: " + arg.m_Dest);
+                    throw RequiredError("argument requires a value: " + arg.m_Dest);
                 }
                 ++index;
                 values.emplace_back(argv[index]);
@@ -747,7 +948,7 @@ namespace argparser
 
             if (values.size() < arg.m_NargsMin)
             {
-                throw ArgumentParserError("argument requires more values: " + arg.m_Dest);
+                throw RequiredError("argument requires more values: " + arg.m_Dest);
             }
 
             if (!arg.is_unbounded() && values.size() > arg.m_NargsMax)
@@ -811,7 +1012,7 @@ namespace argparser
 
                 if (remaining < remaining_minimum + arg.m_NargsMin)
                 {
-                    throw ArgumentParserError("missing positional argument: " + arg.m_Dest);
+                    throw RequiredError("missing positional argument: " + arg.m_Dest);
                 }
 
                 std::size_t max_take = remaining - remaining_minimum;
@@ -823,7 +1024,7 @@ namespace argparser
                 std::size_t take = max_take;
                 if (take < arg.m_NargsMin)
                 {
-                    throw ArgumentParserError("missing positional argument: " + arg.m_Dest);
+                    throw RequiredError("missing positional argument: " + arg.m_Dest);
                 }
 
                 for (std::size_t n = 0; n < take; ++n)
@@ -835,7 +1036,7 @@ namespace argparser
 
             if (cursor < tokens.size())
             {
-                throw ArgumentParserError("unrecognized positional argument: " + tokens[cursor]);
+                throw Error("unrecognized positional argument: " + tokens[cursor]);
             }
         }
 
@@ -869,7 +1070,7 @@ namespace argparser
 
                 if (arg.m_Required && arg.m_Values.empty() && arg.m_DefaultValues.empty())
                 {
-                    throw ArgumentParserError("required argument missing: " + arg.m_Dest);
+                    throw RequiredError("required argument missing: " + arg.m_Dest);
                 }
 
                 if (!arg.m_Choices.empty())
@@ -878,7 +1079,7 @@ namespace argparser
                     {
                         if (std::find(arg.m_Choices.begin(), arg.m_Choices.end(), value) == arg.m_Choices.end())
                         {
-                            throw ArgumentParserError("invalid choice for argument '" + arg.m_Dest + "': " + value);
+                            throw Error("invalid choice for argument '" + arg.m_Dest + "': " + value);
                         }
                     }
                 }
@@ -912,3 +1113,30 @@ namespace argparser
     };
 
 } // namespace argparser
+
+#endif // DJOEZEKE_ARGPARSER_HPP
+
+/**
+ * LICENSE: MIT License
+ *
+ * Copyright (c) 2025 Sackey Ezekiel Etrue
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
