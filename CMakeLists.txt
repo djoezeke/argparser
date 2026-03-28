@@ -4,10 +4,7 @@ cmake_minimum_required(VERSION 3.16...4.1.1 FATAL_ERROR)
 # Project and version.
 #--------------------------------------------------------------------
 
-set (ARGPARSER_VERSION_MAJOR 0)
-set (ARGPARSER_VERSION_MINOR 1)
-set (ARGPARSER_VERSION_PATCH 1)
-set (ARGPARSER_VERSION_STRING ${ARGPARSER_VERSION_MAJOR}.${ARGPARSER_VERSION_MINOR}.${ARGPARSER_VERSION_PATCH})
+set (ARGPARSER_VERSION_STRING "0.1.0")
 
 project(argparser
         VERSION ${ARGPARSER_VERSION_STRING} 

@@ -159,6 +159,7 @@
 #include <cctype>
 #include <string>
 #include <vector>
+#include <cassert>
 #include <cstdlib>
 #include <sstream>
 #include <utility>
@@ -187,6 +188,24 @@
     #include ARGPARSER_CONFIG
 #endif // ARGPARSER_CONFIG
 
+#ifndef ARGPARSER_THEMED_PRINT
+
+#define ST "\e[0;32m" // symbol
+#define NT "\e[0;30m" // name
+#define RT "\e[0;33m" // required
+#define DT "\e[0;33m" // default
+#define FT "\e[0;30m" // allowed
+#define FT "\e[0;30m" // implicit
+#define CC "\e[0;34m" // colon
+#define NC "\e[0;30m" // none
+#define HT "\e[0;30m" //
+
+#endif // ARGPARSER_THEMED_PRINT
+
+#ifndef ARGPARSER_CONSOLE_WIDTH
+    #define ARGPARSER_CONSOLE_WIDTH 80
+#endif
+
 /** @} */
 
 // clang-format on
@@ -196,6 +215,375 @@ namespace argparser
 
     namespace detail
     {
+        namespace format
+        {
+
+            bool isWhitespace(char c)
+            {
+                static std::string chars = " \t\n\r";
+                return chars.find(c) != std::string::npos;
+            }
+
+            bool isBreakableBefore(char c)
+            {
+                static std::string chars = "[({<|";
+                return chars.find(c) != std::string::npos;
+            }
+
+            bool isBreakableAfter(char c)
+            {
+                static std::string chars = "])}>.,:;*+-=&/\\";
+                return chars.find(c) != std::string::npos;
+            }
+
+            class Columns;
+
+            class Column
+            {
+                std::vector<std::string> m_strings;
+                size_t m_width = ARGPARSER_CONSOLE_WIDTH;
+                size_t m_indent = 0;
+                size_t m_initialIndent = std::string::npos;
+
+            public:
+                class iterator
+                {
+                    friend Column;
+
+                    Column const &m_column;
+                    size_t m_stringIndex = 0;
+                    size_t m_pos = 0;
+
+                    size_t m_len = 0;
+                    size_t m_end = 0;
+                    bool m_suffix = false;
+
+                    iterator(Column const &column, size_t stringIndex)
+                        : m_column(column),
+                          m_stringIndex(stringIndex)
+                    {
+                    }
+
+                    auto line() const -> std::string const & { return m_column.m_strings[m_stringIndex]; }
+
+                    auto isBoundary(size_t at) const -> bool
+                    {
+                        assert(at > 0);
+                        assert(at <= line().size());
+
+                        return at == line().size() ||
+                               (isWhitespace(line()[at]) && !isWhitespace(line()[at - 1])) ||
+                               isBreakableBefore(line()[at]) ||
+                               isBreakableAfter(line()[at - 1]);
+                    }
+
+                    void calcLength()
+                    {
+                        assert(m_stringIndex < m_column.m_strings.size());
+
+                        m_suffix = false;
+                        auto width = m_column.m_width - indent();
+                        m_end = m_pos;
+                        if (line()[m_pos] == '\n')
+                        {
+                            ++m_end;
+                        }
+                        while (m_end < line().size() && line()[m_end] != '\n')
+                            ++m_end;
+
+                        if (m_end < m_pos + width)
+                        {
+                            m_len = m_end - m_pos;
+                        }
+                        else
+                        {
+                            size_t len = width;
+                            while (len > 0 && !isBoundary(m_pos + len))
+                                --len;
+                            while (len > 0 && isWhitespace(line()[m_pos + len - 1]))
+                                --len;
+
+                            if (len > 0)
+                            {
+                                m_len = len;
+                            }
+                            else
+                            {
+                                m_suffix = true;
+                                m_len = width - 1;
+                            }
+                        }
+                    }
+
+                    auto indent() const -> size_t
+                    {
+                        auto initial = m_pos == 0 && m_stringIndex == 0 ? m_column.m_initialIndent : std::string::npos;
+                        return initial == std::string::npos ? m_column.m_indent : initial;
+                    }
+
+                    auto addIndentAndSuffix(std::string const &plain) const -> std::string
+                    {
+                        return std::string(indent(), ' ') + (m_suffix ? plain + "-" : plain);
+                    }
+
+                public:
+                    using difference_type = std::ptrdiff_t;
+                    using value_type = std::string;
+                    using pointer = value_type *;
+                    using reference = value_type &;
+                    using iterator_category = std::forward_iterator_tag;
+
+                    explicit iterator(Column const &column) : m_column(column)
+                    {
+                        assert(m_column.m_width > m_column.m_indent);
+                        assert(m_column.m_initialIndent == std::string::npos || m_column.m_width > m_column.m_initialIndent);
+                        calcLength();
+                        if (m_len == 0)
+                            m_stringIndex++; // Empty string
+                    }
+
+                    auto operator*() const -> std::string
+                    {
+                        assert(m_stringIndex < m_column.m_strings.size());
+                        assert(m_pos <= m_end);
+                        return addIndentAndSuffix(line().substr(m_pos, m_len));
+                    }
+
+                    auto operator++() -> iterator &
+                    {
+                        m_pos += m_len;
+                        if (m_pos < line().size() && line()[m_pos] == '\n')
+                            m_pos += 1;
+                        else
+                            while (m_pos < line().size() && isWhitespace(line()[m_pos]))
+                                ++m_pos;
+
+                        if (m_pos == line().size())
+                        {
+                            m_pos = 0;
+                            ++m_stringIndex;
+                        }
+                        if (m_stringIndex < m_column.m_strings.size())
+                            calcLength();
+                        return *this;
+                    }
+
+                    auto operator++(int) -> iterator
+                    {
+                        iterator prev(*this);
+                        operator++();
+                        return prev;
+                    }
+
+                    auto operator==(iterator const &other) const -> bool
+                    {
+                        return m_pos == other.m_pos &&
+                               m_stringIndex == other.m_stringIndex &&
+                               &m_column == &other.m_column;
+                    }
+                    auto operator!=(iterator const &other) const -> bool
+                    {
+                        return !operator==(other);
+                    }
+                };
+
+                using const_iterator = iterator;
+
+                explicit Column(std::string const &text) { m_strings.push_back(text); }
+
+                auto width(size_t newWidth) -> Column &
+                {
+                    assert(newWidth > 0);
+                    m_width = newWidth;
+                    return *this;
+                }
+                auto indent(size_t newIndent) -> Column &
+                {
+                    m_indent = newIndent;
+                    return *this;
+                }
+                auto initialIndent(size_t newIndent) -> Column &
+                {
+                    m_initialIndent = newIndent;
+                    return *this;
+                }
+
+                auto width() const -> size_t { return m_width; }
+                auto begin() const -> iterator { return iterator(*this); }
+                auto end() const -> iterator { return {*this, m_strings.size()}; }
+
+                inline friend std::ostream &operator<<(std::ostream &os, Column const &col)
+                {
+                    bool first = true;
+                    for (auto line : col)
+                    {
+                        if (first)
+                            first = false;
+                        else
+                            os << "\n";
+                        os << line;
+                    }
+                    return os;
+                }
+
+                auto operator+(Column const &other) -> Columns;
+
+                auto toString() const -> std::string
+                {
+                    std::ostringstream oss;
+                    oss << *this;
+                    return oss.str();
+                }
+            };
+
+            class Spacer : public Column
+            {
+
+            public:
+                explicit Spacer(size_t spaceWidth) : Column("")
+                {
+                    width(spaceWidth);
+                }
+            };
+
+            class Columns
+            {
+                std::vector<Column> m_columns;
+
+            public:
+                class iterator
+                {
+                    friend Columns;
+                    struct EndTag
+                    {
+                    };
+
+                    std::vector<Column> const &m_columns;
+                    std::vector<Column::iterator> m_iterators;
+                    size_t m_activeIterators;
+
+                    iterator(Columns const &columns, EndTag)
+                        : m_columns(columns.m_columns),
+                          m_activeIterators(0)
+                    {
+                        m_iterators.reserve(m_columns.size());
+
+                        for (auto const &col : m_columns)
+                            m_iterators.push_back(col.end());
+                    }
+
+                public:
+                    using difference_type = std::ptrdiff_t;
+                    using value_type = std::string;
+                    using pointer = value_type *;
+                    using reference = value_type &;
+                    using iterator_category = std::forward_iterator_tag;
+
+                    explicit iterator(Columns const &columns)
+                        : m_columns(columns.m_columns),
+                          m_activeIterators(m_columns.size())
+                    {
+                        m_iterators.reserve(m_columns.size());
+
+                        for (auto const &col : m_columns)
+                            m_iterators.push_back(col.begin());
+                    }
+
+                    auto operator==(iterator const &other) const -> bool
+                    {
+                        return m_iterators == other.m_iterators;
+                    }
+                    auto operator!=(iterator const &other) const -> bool
+                    {
+                        return m_iterators != other.m_iterators;
+                    }
+                    auto operator*() const -> std::string
+                    {
+                        std::string row, padding;
+
+                        for (size_t i = 0; i < m_columns.size(); ++i)
+                        {
+                            auto width = m_columns[i].width();
+                            if (m_iterators[i] != m_columns[i].end())
+                            {
+                                std::string col = *m_iterators[i];
+                                row += padding + col;
+                                if (col.size() < width)
+                                    padding = std::string(width - col.size(), ' ');
+                                else
+                                    padding = "";
+                            }
+                            else
+                            {
+                                padding += std::string(width, ' ');
+                            }
+                        }
+                        return row;
+                    }
+                    auto operator++() -> iterator &
+                    {
+                        for (size_t i = 0; i < m_columns.size(); ++i)
+                        {
+                            if (m_iterators[i] != m_columns[i].end())
+                                ++m_iterators[i];
+                        }
+                        return *this;
+                    }
+                    auto operator++(int) -> iterator
+                    {
+                        iterator prev(*this);
+                        operator++();
+                        return prev;
+                    }
+                };
+                using const_iterator = iterator;
+
+                auto begin() const -> iterator { return iterator(*this); }
+                auto end() const -> iterator { return {*this, iterator::EndTag()}; }
+
+                auto operator+=(Column const &col) -> Columns &
+                {
+                    m_columns.push_back(col);
+                    return *this;
+                }
+                auto operator+(Column const &col) -> Columns
+                {
+                    Columns combined = *this;
+                    combined += col;
+                    return combined;
+                }
+
+                inline friend std::ostream &operator<<(std::ostream &os, Columns const &cols)
+                {
+
+                    bool first = true;
+                    for (auto line : cols)
+                    {
+                        if (first)
+                            first = false;
+                        else
+                            os << "\n";
+                        os << line;
+                    }
+                    return os;
+                }
+
+                auto toString() const -> std::string
+                {
+                    std::ostringstream oss;
+                    oss << *this;
+                    return oss.str();
+                }
+            };
+
+            inline auto Column::operator+(Column const &other) -> Columns
+            {
+                Columns cols;
+                cols += *this;
+                cols += other;
+                return cols;
+            }
+        }
     }
 
 #ifndef ARGPARSER_NO_EXCEPTIONS
@@ -235,10 +623,62 @@ namespace argparser
             : Error("help requested") {};
     };
 
+    class ArgumentError : public Error
+    {
+    public:
+        ArgumentError(std::string argument, const std::string &message)
+            : Error(argument + " : " + message) {};
+    };
+
 #endif // ARGPARSER_NO_EXCEPTIONS
+
+    class HelpFormatter
+    {
+    public:
+        class Section
+        {
+            friend class HelpFormatter;
+
+        private:
+            std::vector<Section> m_Sections;
+            HelpFormatter *m_Formatter;
+            std::string m_Heading;
+        };
+
+    public:
+        HelpFormatter(std::string program = "", int width = 0, int indent = 4)
+        {
+            m_Width = width;
+            m_Indent = indent;
+            m_Level = 0;
+            m_CIndent = 0;
+        };
+
+    private:
+        void indent()
+        {
+            m_CIndent += m_Indent;
+            m_Level += 1;
+        };
+
+        void dedent()
+        {
+            m_CIndent -= m_Indent;
+            m_Level -= 1;
+        };
+
+    private:
+        std::vector<Section> m_Sections;
+        int m_Width;
+        int m_Level;
+        int m_Indent;
+        int m_CIndent;
+    };
 
     class Namespace
     {
+        friend class ArgumentParser;
+
     public:
         bool has(const std::string &name) const
         {
@@ -267,7 +707,7 @@ namespace argparser
             const auto &vals = raw_values(name);
             if (vals.empty())
             {
-                throw ArgumentParserError("argument has no value: " + name);
+                throw Error("argument has no value: " + name);
             }
             return convert<T>(vals.front());
         }
@@ -307,7 +747,7 @@ namespace argparser
                 {
                     return false;
                 }
-                throw ArgumentParserError("cannot convert value to bool: " + value);
+                throw Error("cannot convert value to bool: " + value);
             }
             else if constexpr (std::is_integral<T>::value)
             {
@@ -316,7 +756,7 @@ namespace argparser
                 iss >> parsed;
                 if (iss.fail() || !iss.eof())
                 {
-                    throw ArgumentParserError("cannot convert value to integer: " + value);
+                    throw Error("cannot convert value to integer: " + value);
                 }
                 return parsed;
             }
@@ -327,7 +767,7 @@ namespace argparser
                 iss >> parsed;
                 if (iss.fail() || !iss.eof())
                 {
-                    throw ArgumentParserError("cannot convert value to number: " + value);
+                    throw Error("cannot convert value to number: " + value);
                 }
                 return parsed;
             }
@@ -340,8 +780,6 @@ namespace argparser
     private:
         std::unordered_map<std::string, std::vector<std::string>> m_Data;
         std::unordered_map<std::string, bool> m_Provided;
-
-        friend class ArgumentParser;
     };
 
     class ArgumentParser
@@ -349,6 +787,8 @@ namespace argparser
     public:
         class Argument
         {
+            friend class ArgumentParser;
+
         public:
             Argument &help(const std::string &text)
             {
@@ -563,15 +1003,14 @@ namespace argparser
 
             std::vector<std::string> m_Values;
             std::size_t m_Occurrences{0};
-
-            friend class ArgumentParser;
         };
 
     public:
         explicit ArgumentParser(std::string program = "", std::string description = "", std::string epilog = "")
             : m_Program(std::move(program)),
               m_Description(std::move(description)),
-              m_Epilog(std::move(epilog))
+              m_Epilog(std::move(epilog)),
+              m_HelpFormatter(HelpFormatter())
         {
             if (m_AddHelp)
             {
@@ -588,7 +1027,7 @@ namespace argparser
             std::vector<std::string> values{names...};
             if (values.empty())
             {
-                throw ArgumentParserError("add_argument requires at least one name");
+                throw Error("add_argument requires at least one name");
             }
 
             Argument arg;
@@ -602,7 +1041,7 @@ namespace argparser
                 {
                     if (name.empty() || name[0] != '-')
                     {
-                        throw ArgumentParserError("optional arguments must start with '-': " + name);
+                        throw Error("optional arguments must start with '-': " + name);
                     }
                 }
 
@@ -624,7 +1063,7 @@ namespace argparser
                 {
                     if (m_OptionLookup.find(name) != m_OptionLookup.end())
                     {
-                        throw ArgumentParserError("duplicate option: " + name);
+                        throw Error("duplicate option: " + name);
                     }
                 }
             }
@@ -632,7 +1071,7 @@ namespace argparser
             {
                 if (values.size() != 1)
                 {
-                    throw ArgumentParserError("positional arguments only accept one name");
+                    throw Error("positional arguments only accept one name");
                 }
                 arg.m_Kind = Argument::Kind::Positional;
                 arg.m_Dest = values.front();
@@ -1110,7 +1549,10 @@ namespace argparser
         std::unordered_map<std::string, std::size_t> m_OptionLookup;
 
         Namespace m_Namespace;
+        HelpFormatter m_HelpFormatter;
     };
+
+    using Argparser = ArgumentParser;
 
 } // namespace argparser
 
