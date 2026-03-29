@@ -19,7 +19,7 @@ int main(int argc, char **argv)
 
         if (ns.provided("tag"))
         {
-            const auto tags = ns.get_list<std::string>("tag");
+            const auto tags = ns.getlist<std::string>("tag");
             for (const auto &tag : tags)
             {
                 std::cout << "tag=" << tag << "\n";
@@ -31,9 +31,15 @@ int main(int argc, char **argv)
         parser.print_help();
         return 0;
     }
-    catch (const std::exception &ex)
+    catch (const argparser::UsageError &)
     {
-        std::cerr << ex.what() << "\n\n";
+        parser.print_usage();
+        return 0;
+    }
+    catch (const argparser::ArgumentError &e)
+    {
+        std::cerr << e.what() << "\n\n";
+        parser.print_usage(std::cerr);
         parser.print_help(std::cerr);
         return 1;
     }

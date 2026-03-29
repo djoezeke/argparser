@@ -184,23 +184,16 @@
 /**
  * @brief Configure file with user config.
  */
-#ifdef ARGPARSER_CONFIG
+
+#define BOLD 0
+#define NORMAL 1
+#define INTENSE 2
+#define BACKGROUND 3
+#define INTENSE_BACKGROUND 4
+
+ #ifdef ARGPARSER_CONFIG
     #include ARGPARSER_CONFIG
 #endif // ARGPARSER_CONFIG
-
-#ifndef ARGPARSER_THEMED_PRINT
-
-#define ST "\e[0;32m" // symbol
-#define NT "\e[0;30m" // name
-#define RT "\e[0;33m" // required
-#define DT "\e[0;33m" // default
-#define FT "\e[0;30m" // allowed
-#define FT "\e[0;30m" // implicit
-#define CC "\e[0;34m" // colon
-#define NC "\e[0;30m" // none
-#define HT "\e[0;30m" //
-
-#endif // ARGPARSER_THEMED_PRINT
 
 #ifndef ARGPARSER_CONSOLE_WIDTH
     #define ARGPARSER_CONSOLE_WIDTH 80
@@ -217,6 +210,20 @@ namespace argparser
     {
         namespace format
         {
+
+            class Colors
+            {
+                std::string reset = "\x1b[0m";
+
+                std::vector<std::string> red = {"\x1b[31m", "", ""};
+                std::vector<std::string> blue = {"\x1b[34m", "", ""};
+                std::vector<std::string> cyan = {"\x1b[36m", "", ""};
+                std::vector<std::string> green = {"\x1b[32m", "", ""};
+                std::vector<std::string> black = {"\x1b[30m", "\x1b[1;30m", "\x1b[90m", "\x1b[40m", "\x1b[100m"};
+                std::vector<std::string> white = {"\x1b[37m", "", ""};
+                std::vector<std::string> yellow = {"\x1b[33m", "", ""};
+                std::vector<std::string> magenta = {"\x1b[35m", "", ""};
+            };
 
             bool isWhitespace(char c)
             {
@@ -588,46 +595,39 @@ namespace argparser
 
 #ifndef ARGPARSER_NO_EXCEPTIONS
 
-    class Error : public std::runtime_error
+    class ArgumentError : public std::runtime_error
     {
     public:
-        explicit Error(const std::string &message)
+        explicit ArgumentError(const std::string &message)
             : std::runtime_error(message) {};
     };
 
-    class ParseError : public Error
+    class ParseError : public ArgumentError
     {
     public:
         ParseError(const std::string &message)
-            : Error(message) {};
+            : ArgumentError(message) {};
     };
 
-    class UsageError : public Error
+    class UsageError : public ArgumentError
     {
     public:
         UsageError(const std::string &message)
-            : Error(message) {};
+            : ArgumentError(message) {};
     };
 
-    class RequiredError : public Error
+    class RequiredError : public ArgumentError
     {
     public:
         RequiredError(const std::string &message)
-            : Error(message) {};
+            : ArgumentError(message) {};
     };
 
-    class HelpError : public Error
+    class HelpError : public ArgumentError
     {
     public:
         HelpError()
-            : Error("help requested") {};
-    };
-
-    class ArgumentError : public Error
-    {
-    public:
-        ArgumentError(std::string argument, const std::string &message)
-            : Error(argument + " : " + message) {};
+            : ArgumentError("help requested") {};
     };
 
 #endif // ARGPARSER_NO_EXCEPTIONS
@@ -653,6 +653,15 @@ namespace argparser
             m_Level = 0;
             m_CIndent = 0;
         };
+
+        HelpFormatter &add_help() {};
+        HelpFormatter &add_text(std::string text) {};
+        HelpFormatter &add_usage(std::string usage, std::vector<std::string> args) {};
+
+    private:
+        std::string format_help() {};
+        std::string format_text(std::string text) {};
+        std::string format_usage(std::string usage, std::vector<std::string> args) {};
 
     private:
         void indent()
@@ -696,7 +705,10 @@ namespace argparser
             const auto it = m_Data.find(name);
             if (it == m_Data.end())
             {
+
+#ifndef ARGPARSER_NO_EXCEPTIONS
                 throw ParseError("unknown argument: " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
             }
             return it->second;
         }
@@ -707,13 +719,15 @@ namespace argparser
             const auto &vals = raw_values(name);
             if (vals.empty())
             {
-                throw Error("argument has no value: " + name);
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                throw ArgumentError("argument has no value: " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
             }
             return convert<T>(vals.front());
         }
 
         template <typename T>
-        std::vector<T> get_list(const std::string &name) const
+        std::vector<T> getlist(const std::string &name) const
         {
             const auto &vals = raw_values(name);
             std::vector<T> out;
@@ -747,7 +761,9 @@ namespace argparser
                 {
                     return false;
                 }
-                throw Error("cannot convert value to bool: " + value);
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                throw ArgumentError("cannot convert value to bool: " + value);
+#endif // ARGPARSER_NO_EXCEPTIONS
             }
             else if constexpr (std::is_integral<T>::value)
             {
@@ -756,7 +772,9 @@ namespace argparser
                 iss >> parsed;
                 if (iss.fail() || !iss.eof())
                 {
-                    throw Error("cannot convert value to integer: " + value);
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                    throw ArgumentError("cannot convert value to integer: " + value);
+#endif // ARGPARSER_NO_EXCEPTIONS
                 }
                 return parsed;
             }
@@ -767,7 +785,9 @@ namespace argparser
                 iss >> parsed;
                 if (iss.fail() || !iss.eof())
                 {
-                    throw Error("cannot convert value to number: " + value);
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                    throw ArgumentError("cannot convert value to number: " + value);
+#endif // ARGPARSER_NO_EXCEPTIONS
                 }
                 return parsed;
             }
@@ -848,7 +868,9 @@ namespace argparser
                 }
                 else
                 {
-                    throw Error("unknown action: " + name);
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                    throw ArgumentError("unknown action: " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
                 }
                 return *this;
             }
@@ -879,7 +901,9 @@ namespace argparser
                 }
                 else
                 {
+#ifndef ARGPARSER_NO_EXCEPTIONS
                     throw ParseError("unknown nargs pattern");
+#endif // ARGPARSER_NO_EXCEPTIONS
                 }
                 return *this;
             }
@@ -1021,13 +1045,45 @@ namespace argparser
             }
         }
 
+        ArgumentParser &program(std::string program)
+        {
+            m_Program = program;
+            return *this;
+        };
+
+        ArgumentParser &usage(std::string usage)
+        {
+            m_Usage = usage;
+            return *this;
+        };
+
+        ArgumentParser &epilog(std::string epilog)
+        {
+            m_Epilog = epilog;
+            return *this;
+        };
+
+        ArgumentParser &formatter(HelpFormatter formatter)
+        {
+            m_HelpFormatter = formatter;
+            return *this;
+        };
+
+        ArgumentParser &description(std::string description)
+        {
+            m_Description = description;
+            return *this;
+        };
+
         template <typename... Names>
         Argument &add_argument(const Names &...names)
         {
             std::vector<std::string> values{names...};
             if (values.empty())
             {
-                throw Error("add_argument requires at least one name");
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                throw ArgumentError("add_argument requires at least one name");
+#endif // ARGPARSER_NO_EXCEPTIONS
             }
 
             Argument arg;
@@ -1041,7 +1097,9 @@ namespace argparser
                 {
                     if (name.empty() || name[0] != '-')
                     {
-                        throw Error("optional arguments must start with '-': " + name);
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                        throw ArgumentError("optional arguments must start with '-': " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
                     }
                 }
 
@@ -1063,7 +1121,9 @@ namespace argparser
                 {
                     if (m_OptionLookup.find(name) != m_OptionLookup.end())
                     {
-                        throw Error("duplicate option: " + name);
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                        throw ArgumentError("duplicate option: " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
                     }
                 }
             }
@@ -1071,7 +1131,9 @@ namespace argparser
             {
                 if (values.size() != 1)
                 {
-                    throw Error("positional arguments only accept one name");
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                    throw ArgumentError("positional arguments only accept one name");
+#endif // ARGPARSER_NO_EXCEPTIONS
                 }
                 arg.m_Kind = Argument::Kind::Positional;
                 arg.m_Dest = values.front();
@@ -1151,10 +1213,16 @@ namespace argparser
             return m_Namespace;
         }
 
-        std::string format_help() const
+        std::string format_usage() const
         {
             std::ostringstream out;
             out << "Usage: " << (m_Program.empty() ? "program" : m_Program);
+            return out.str();
+        }
+
+        std::string format_help() const
+        {
+            std::ostringstream out;
 
             for (const auto &arg : m_Arguments)
             {
@@ -1248,6 +1316,11 @@ namespace argparser
             stream << format_help();
         }
 
+        void print_usage(std::ostream &stream = std::cout) const
+        {
+            stream << format_usage();
+        }
+
     private:
         static bool is_optional_token(const std::string &token)
         {
@@ -1292,7 +1365,9 @@ namespace argparser
             const auto it = m_OptionLookup.find(name);
             if (it == m_OptionLookup.end())
             {
+#ifndef ARGPARSER_NO_EXCEPTIONS
                 throw ParseError("unrecognized argument: " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
             }
             return m_Arguments[it->second];
         }
@@ -1304,7 +1379,9 @@ namespace argparser
             switch (arg.m_Action)
             {
             case Argument::ActionType::Help:
+#ifndef ARGPARSER_NO_EXCEPTIONS
                 throw HelpError();
+#endif // ARGPARSER_NO_EXCEPTIONS
             case Argument::ActionType::StoreTrue:
                 arg.m_Values = {"true"};
                 return;
@@ -1348,7 +1425,9 @@ namespace argparser
             {
                 if (index + 1 >= argc)
                 {
+#ifndef ARGPARSER_NO_EXCEPTIONS
                     throw RequiredError("argument requires a value: " + arg.m_Dest);
+#endif // ARGPARSER_NO_EXCEPTIONS
                 }
                 ++index;
                 values.emplace_back(argv[index]);
@@ -1387,7 +1466,9 @@ namespace argparser
 
             if (values.size() < arg.m_NargsMin)
             {
+#ifndef ARGPARSER_NO_EXCEPTIONS
                 throw RequiredError("argument requires more values: " + arg.m_Dest);
+#endif // ARGPARSER_NO_EXCEPTIONS
             }
 
             if (!arg.is_unbounded() && values.size() > arg.m_NargsMax)
@@ -1451,7 +1532,9 @@ namespace argparser
 
                 if (remaining < remaining_minimum + arg.m_NargsMin)
                 {
+#ifndef ARGPARSER_NO_EXCEPTIONS
                     throw RequiredError("missing positional argument: " + arg.m_Dest);
+#endif // ARGPARSER_NO_EXCEPTIONS
                 }
 
                 std::size_t max_take = remaining - remaining_minimum;
@@ -1463,7 +1546,9 @@ namespace argparser
                 std::size_t take = max_take;
                 if (take < arg.m_NargsMin)
                 {
+#ifndef ARGPARSER_NO_EXCEPTIONS
                     throw RequiredError("missing positional argument: " + arg.m_Dest);
+#endif // ARGPARSER_NO_EXCEPTIONS
                 }
 
                 for (std::size_t n = 0; n < take; ++n)
@@ -1475,7 +1560,9 @@ namespace argparser
 
             if (cursor < tokens.size())
             {
-                throw Error("unrecognized positional argument: " + tokens[cursor]);
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                throw ArgumentError("unrecognized positional argument: " + tokens[cursor]);
+#endif // ARGPARSER_NO_EXCEPTIONS
             }
         }
 
@@ -1509,7 +1596,9 @@ namespace argparser
 
                 if (arg.m_Required && arg.m_Values.empty() && arg.m_DefaultValues.empty())
                 {
+#ifndef ARGPARSER_NO_EXCEPTIONS
                     throw RequiredError("required argument missing: " + arg.m_Dest);
+#endif // ARGPARSER_NO_EXCEPTIONS
                 }
 
                 if (!arg.m_Choices.empty())
@@ -1518,7 +1607,9 @@ namespace argparser
                     {
                         if (std::find(arg.m_Choices.begin(), arg.m_Choices.end(), value) == arg.m_Choices.end())
                         {
-                            throw Error("invalid choice for argument '" + arg.m_Dest + "': " + value);
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                            throw ArgumentError("invalid choice for argument '" + arg.m_Dest + "': " + value);
+#endif // ARGPARSER_NO_EXCEPTIONS
                         }
                     }
                 }
@@ -1538,9 +1629,10 @@ namespace argparser
         }
 
     private:
+        std::string m_Usage;
+        std::string m_Epilog;
         std::string m_Program;
         std::string m_Description;
-        std::string m_Epilog;
 
         bool m_AddHelp{true};
 
