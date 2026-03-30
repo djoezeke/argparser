@@ -19,6 +19,10 @@ function(argparser_add_example target)
         message(FATAL_ERROR "Extra unparsed arguments when calling argparser_add_example: ${THIS_UNPARSED_ARGUMENTS}")
     endif()
 
+    if(NOT THIS_SOURCES)
+        message(FATAL_ERROR "argparser_add_example requires SOURCES")
+    endif()
+
     # set a source group for the source files
     source_group("" FILES ${THIS_SOURCES})
 
@@ -48,18 +52,16 @@ endfunction()
 file(GLOB C_SAMPLE_SOURCES "*.c")
 foreach(EXAMPLE_FILE ${C_SAMPLE_SOURCES})
     get_filename_component(EXAMPLE_NAME ${EXAMPLE_FILE} NAME_WE)
-	argparser_add_example("${EXAMPLE_NAME}"
-						SOURCES "${EXAMPLE_FILE}"
-						DEPENDS Argparser::ArgparserC)
+    message(WARNING "Skipping C example '${EXAMPLE_NAME}' - this project currently exports a header-only C++ target")
 endforeach()
 
 # Automatically add all .cpp samples in this folder
 file(GLOB CPP_SAMPLE_SOURCES "*.cpp")
 foreach(EXAMPLE_FILE ${CPP_SAMPLE_SOURCES})
-  	get_filename_component(EXAMPLE_NAME ${EXAMPLE_FILE} NAME_WE)
-	argparser_add_example("${EXAMPLE_NAME}"
-						SOURCES "${EXAMPLE_FILE}"
-						DEPENDS Argparser::Argparser)
+    get_filename_component(EXAMPLE_NAME ${EXAMPLE_FILE} NAME_WE)
+    argparser_add_example("${EXAMPLE_NAME}"
+                        SOURCES "${EXAMPLE_FILE}"
+                        DEPENDS Argparser::Argparser)
 endforeach()
 
 # ===================================================================

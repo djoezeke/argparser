@@ -26,7 +26,7 @@ int main()
         const char *argv[] = {"test", "--tag", "a", "--tag", "b"};
         const auto &ns = parser.parse_args(5, const_cast<char **>(argv));
 
-        const auto tags = ns.get_list<std::string>("tag");
+        const auto tags = ns.getlist<std::string>("tag");
         assert(tags.size() == 2);
         assert(tags[0] == "a");
         assert(tags[1] == "b");

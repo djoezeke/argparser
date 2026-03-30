@@ -81,6 +81,8 @@ endif()
 add_library(Argparser INTERFACE)
 add_library(Argparser::Argparser ALIAS Argparser)
 
+target_compile_features(Argparser INTERFACE cxx_std_17)
+
 target_include_directories(Argparser 
     INTERFACE 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -111,7 +113,7 @@ if(ARGPARSER_BUILD_TESTS)
     # if the target compiler is some version of Microsoft Visual C++ and
     # if this project is the main project.
     if(MSVC AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-      set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT argparser_tests)
+      set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT argparser-tests)
     endif()
 endif()
 
@@ -121,10 +123,24 @@ endif()
 
 include(CMakePackageConfigHelpers)
 
+set(ARGPARSER_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/Argparser")
+
 configure_package_config_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/cmake/ArgparserConfig.cmake.in"
 	"${CMAKE_CURRENT_BINARY_DIR}/ArgparserConfig.cmake"
-	INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Argparser"
+	INSTALL_DESTINATION "${ARGPARSER_INSTALL_CMAKEDIR}"
+)
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/ArgparserConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/pkg-config.pc.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/argparser.pc"
+  @ONLY
 )
 
 
@@ -140,23 +156,24 @@ if(ARGPARSER_ENABLE_INSTALL)
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   )
 
-  if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/argparser.h)
-    install(FILES
-      ${CMAKE_CURRENT_SOURCE_DIR}/argparser.h
-      DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    )
-  endif()
-
 	install(EXPORT ArgparserTargets
 		FILE ArgparserTargets.cmake
 		NAMESPACE Argparser::
-		DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Argparser"
+		DESTINATION "${ARGPARSER_INSTALL_CMAKEDIR}"
 	)
 
     install(FILES
 		"${CMAKE_CURRENT_BINARY_DIR}/ArgparserConfig.cmake"
-		DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/Argparser"
+		"${CMAKE_CURRENT_BINARY_DIR}/ArgparserConfigVersion.cmake"
+		DESTINATION "${ARGPARSER_INSTALL_CMAKEDIR}"
 	)
+
+    if(UNIX)
+      install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/argparser.pc"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+      )
+    endif()
 
 endif()
 
@@ -168,7 +185,13 @@ endif()
 if(ARGPARSER_ENABLE_PACKING)
 
     if(WIN32 AND NOT CYGWIN)
-        set(CPACK_GENERATOR NSIS ZIP)
+    find_program(ARGPARSER_MAKENSIS_EXECUTABLE makensis)
+    if(ARGPARSER_MAKENSIS_EXECUTABLE)
+      set(CPACK_GENERATOR NSIS ZIP)
+    else()
+      message(STATUS "NSIS not found: falling back to ZIP package generator")
+      set(CPACK_GENERATOR ZIP)
+    endif()
     endif()
     if(APPLE)
         set(CPACK_GENERATOR DragNDrop TGZ)

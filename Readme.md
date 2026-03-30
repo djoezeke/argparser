@@ -35,7 +35,7 @@ It offers a modern and intuitive API for declaring arguments with `add_argument(
 
 ## ✨ Features
 
-- Header-only C++ (single include)
+- Header-only C++17 (single include)
 - Python-style `add_argument` API
 - Positional + optional arguments
 - Actions: `store_true`, `store_false`, `append`, `count`
@@ -74,6 +74,35 @@ To use Argparser in your project, include the single header:
 ```cpp
 #include "argparser.hpp"
 ```
+
+With CMake (as subdirectory):
+
+```cmake
+add_subdirectory(path/to/argparser)
+target_link_libraries(your_app PRIVATE Argparser::Argparser)
+```
+
+With CMake (installed package):
+
+```cmake
+find_package(Argparser CONFIG REQUIRED)
+target_link_libraries(your_app PRIVATE Argparser::Argparser)
+```
+
+Install locally:
+
+```sh
+cmake -S . -B build -DARGPARSER_ENABLE_INSTALL=ON
+cmake --build build
+cmake --install build --prefix ./install
+```
+
+Configure project options:
+
+- `ARGPARSER_BUILD_EXAMPLES=ON|OFF`
+- `ARGPARSER_BUILD_TESTS=ON|OFF`
+- `ARGPARSER_ENABLE_INSTALL=ON|OFF`
+- `ARGPARSER_ENABLE_DOXYGEN=ON|OFF`
 
 ### 🤖 Usage
 
@@ -135,13 +164,46 @@ int main(int argc, char **argv) {
       auto verbose = ns.get<bool>("verbose");
       auto number = ns.get<int>("number");
       (void)input; (void)verbose; (void)number;
-   } catch (const argparser::HelpRequested&) {
+   } catch (const argparser::HelpError&) {
       parser.print_help();
    }
 
    return 0;
 }
 ```
+
+### Enhanced Help Formatter
+
+```cpp
+#include "argparser.hpp"
+
+int main(int argc, char** argv) {
+   argparser::ArgumentParser parser("mytool");
+   parser.add_argument("-v", "--verbose").action("store_true").help("verbose output");
+   parser.add_argument("input").help("input file");
+
+   parser.set_help_format(argparser::HelpFormatter::OutputFormat::Colored)
+            .set_help_width(88)
+            .set_help_description("Process files with advanced help output")
+            .add_example("mytool -v data.txt", "Run with verbose logging")
+            .add_note("Use --help to view all options")
+            .add_warning("Input file must exist")
+            .set_prefix_info("MyTool CLI")
+            .set_suffix_info("Docs: https://example.com/mytool");
+
+   try {
+      parser.parse_args(argc, argv);
+   } catch (const argparser::HelpError&) {
+      parser.print_help();
+   }
+}
+```
+
+Useful formatter controls:
+- `set_help_format(...)` supports `Plain`, `Colored`, `Markdown`, and `Compact`
+- `use_help_colors(...)`, `set_color_theme(...)`, and `set_help_alignment(...)`
+- `configure_help(format, use_colors, width)` for one-call setup
+- `get_formatter()` for direct advanced customization
 
 ### Example Help
 
@@ -164,6 +226,26 @@ Options:
 ```
 
 ## 🧪 Testing
+
+Configure and build with tests enabled:
+
+```sh
+cmake -S . -B build -DARGPARSER_BUILD_TESTS=ON
+cmake --build build
+```
+
+Run tests:
+
+```sh
+ctest --test-dir build --output-on-failure
+```
+
+Build examples:
+
+```sh
+cmake -S . -B build -DARGPARSER_BUILD_EXAMPLES=ON
+cmake --build build
+```
 
 ## 🔰 Contributing
 

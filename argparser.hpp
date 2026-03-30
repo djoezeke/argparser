@@ -170,6 +170,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <initializer_list>
+#include <cstdio>
 
 //-----------------------------------------------------------------------------
 // [SECTION] Configurations
@@ -208,389 +209,6 @@ namespace argparser
 
     namespace detail
     {
-        namespace format
-        {
-
-            class Colors
-            {
-                std::string reset = "\x1b[0m";
-
-                std::vector<std::string> red = {"\x1b[31m", "", ""};
-                std::vector<std::string> blue = {"\x1b[34m", "", ""};
-                std::vector<std::string> cyan = {"\x1b[36m", "", ""};
-                std::vector<std::string> green = {"\x1b[32m", "", ""};
-                std::vector<std::string> black = {"\x1b[30m", "\x1b[1;30m", "\x1b[90m", "\x1b[40m", "\x1b[100m"};
-                std::vector<std::string> white = {"\x1b[37m", "", ""};
-                std::vector<std::string> yellow = {"\x1b[33m", "", ""};
-                std::vector<std::string> magenta = {"\x1b[35m", "", ""};
-            };
-
-            bool isWhitespace(char c)
-            {
-                static std::string chars = " \t\n\r";
-                return chars.find(c) != std::string::npos;
-            }
-
-            bool isBreakableBefore(char c)
-            {
-                static std::string chars = "[({<|";
-                return chars.find(c) != std::string::npos;
-            }
-
-            bool isBreakableAfter(char c)
-            {
-                static std::string chars = "])}>.,:;*+-=&/\\";
-                return chars.find(c) != std::string::npos;
-            }
-
-            class Columns;
-
-            class Column
-            {
-                std::vector<std::string> m_strings;
-                size_t m_width = ARGPARSER_CONSOLE_WIDTH;
-                size_t m_indent = 0;
-                size_t m_initialIndent = std::string::npos;
-
-            public:
-                class iterator
-                {
-                    friend Column;
-
-                    Column const &m_column;
-                    size_t m_stringIndex = 0;
-                    size_t m_pos = 0;
-
-                    size_t m_len = 0;
-                    size_t m_end = 0;
-                    bool m_suffix = false;
-
-                    iterator(Column const &column, size_t stringIndex)
-                        : m_column(column),
-                          m_stringIndex(stringIndex)
-                    {
-                    }
-
-                    auto line() const -> std::string const & { return m_column.m_strings[m_stringIndex]; }
-
-                    auto isBoundary(size_t at) const -> bool
-                    {
-                        assert(at > 0);
-                        assert(at <= line().size());
-
-                        return at == line().size() ||
-                               (isWhitespace(line()[at]) && !isWhitespace(line()[at - 1])) ||
-                               isBreakableBefore(line()[at]) ||
-                               isBreakableAfter(line()[at - 1]);
-                    }
-
-                    void calcLength()
-                    {
-                        assert(m_stringIndex < m_column.m_strings.size());
-
-                        m_suffix = false;
-                        auto width = m_column.m_width - indent();
-                        m_end = m_pos;
-                        if (line()[m_pos] == '\n')
-                        {
-                            ++m_end;
-                        }
-                        while (m_end < line().size() && line()[m_end] != '\n')
-                            ++m_end;
-
-                        if (m_end < m_pos + width)
-                        {
-                            m_len = m_end - m_pos;
-                        }
-                        else
-                        {
-                            size_t len = width;
-                            while (len > 0 && !isBoundary(m_pos + len))
-                                --len;
-                            while (len > 0 && isWhitespace(line()[m_pos + len - 1]))
-                                --len;
-
-                            if (len > 0)
-                            {
-                                m_len = len;
-                            }
-                            else
-                            {
-                                m_suffix = true;
-                                m_len = width - 1;
-                            }
-                        }
-                    }
-
-                    auto indent() const -> size_t
-                    {
-                        auto initial = m_pos == 0 && m_stringIndex == 0 ? m_column.m_initialIndent : std::string::npos;
-                        return initial == std::string::npos ? m_column.m_indent : initial;
-                    }
-
-                    auto addIndentAndSuffix(std::string const &plain) const -> std::string
-                    {
-                        return std::string(indent(), ' ') + (m_suffix ? plain + "-" : plain);
-                    }
-
-                public:
-                    using difference_type = std::ptrdiff_t;
-                    using value_type = std::string;
-                    using pointer = value_type *;
-                    using reference = value_type &;
-                    using iterator_category = std::forward_iterator_tag;
-
-                    explicit iterator(Column const &column) : m_column(column)
-                    {
-                        assert(m_column.m_width > m_column.m_indent);
-                        assert(m_column.m_initialIndent == std::string::npos || m_column.m_width > m_column.m_initialIndent);
-                        calcLength();
-                        if (m_len == 0)
-                            m_stringIndex++; // Empty string
-                    }
-
-                    auto operator*() const -> std::string
-                    {
-                        assert(m_stringIndex < m_column.m_strings.size());
-                        assert(m_pos <= m_end);
-                        return addIndentAndSuffix(line().substr(m_pos, m_len));
-                    }
-
-                    auto operator++() -> iterator &
-                    {
-                        m_pos += m_len;
-                        if (m_pos < line().size() && line()[m_pos] == '\n')
-                            m_pos += 1;
-                        else
-                            while (m_pos < line().size() && isWhitespace(line()[m_pos]))
-                                ++m_pos;
-
-                        if (m_pos == line().size())
-                        {
-                            m_pos = 0;
-                            ++m_stringIndex;
-                        }
-                        if (m_stringIndex < m_column.m_strings.size())
-                            calcLength();
-                        return *this;
-                    }
-
-                    auto operator++(int) -> iterator
-                    {
-                        iterator prev(*this);
-                        operator++();
-                        return prev;
-                    }
-
-                    auto operator==(iterator const &other) const -> bool
-                    {
-                        return m_pos == other.m_pos &&
-                               m_stringIndex == other.m_stringIndex &&
-                               &m_column == &other.m_column;
-                    }
-                    auto operator!=(iterator const &other) const -> bool
-                    {
-                        return !operator==(other);
-                    }
-                };
-
-                using const_iterator = iterator;
-
-                explicit Column(std::string const &text) { m_strings.push_back(text); }
-
-                auto width(size_t newWidth) -> Column &
-                {
-                    assert(newWidth > 0);
-                    m_width = newWidth;
-                    return *this;
-                }
-                auto indent(size_t newIndent) -> Column &
-                {
-                    m_indent = newIndent;
-                    return *this;
-                }
-                auto initialIndent(size_t newIndent) -> Column &
-                {
-                    m_initialIndent = newIndent;
-                    return *this;
-                }
-
-                auto width() const -> size_t { return m_width; }
-                auto begin() const -> iterator { return iterator(*this); }
-                auto end() const -> iterator { return {*this, m_strings.size()}; }
-
-                inline friend std::ostream &operator<<(std::ostream &os, Column const &col)
-                {
-                    bool first = true;
-                    for (auto line : col)
-                    {
-                        if (first)
-                            first = false;
-                        else
-                            os << "\n";
-                        os << line;
-                    }
-                    return os;
-                }
-
-                auto operator+(Column const &other) -> Columns;
-
-                auto toString() const -> std::string
-                {
-                    std::ostringstream oss;
-                    oss << *this;
-                    return oss.str();
-                }
-            };
-
-            class Spacer : public Column
-            {
-
-            public:
-                explicit Spacer(size_t spaceWidth) : Column("")
-                {
-                    width(spaceWidth);
-                }
-            };
-
-            class Columns
-            {
-                std::vector<Column> m_columns;
-
-            public:
-                class iterator
-                {
-                    friend Columns;
-                    struct EndTag
-                    {
-                    };
-
-                    std::vector<Column> const &m_columns;
-                    std::vector<Column::iterator> m_iterators;
-                    size_t m_activeIterators;
-
-                    iterator(Columns const &columns, EndTag)
-                        : m_columns(columns.m_columns),
-                          m_activeIterators(0)
-                    {
-                        m_iterators.reserve(m_columns.size());
-
-                        for (auto const &col : m_columns)
-                            m_iterators.push_back(col.end());
-                    }
-
-                public:
-                    using difference_type = std::ptrdiff_t;
-                    using value_type = std::string;
-                    using pointer = value_type *;
-                    using reference = value_type &;
-                    using iterator_category = std::forward_iterator_tag;
-
-                    explicit iterator(Columns const &columns)
-                        : m_columns(columns.m_columns),
-                          m_activeIterators(m_columns.size())
-                    {
-                        m_iterators.reserve(m_columns.size());
-
-                        for (auto const &col : m_columns)
-                            m_iterators.push_back(col.begin());
-                    }
-
-                    auto operator==(iterator const &other) const -> bool
-                    {
-                        return m_iterators == other.m_iterators;
-                    }
-                    auto operator!=(iterator const &other) const -> bool
-                    {
-                        return m_iterators != other.m_iterators;
-                    }
-                    auto operator*() const -> std::string
-                    {
-                        std::string row, padding;
-
-                        for (size_t i = 0; i < m_columns.size(); ++i)
-                        {
-                            auto width = m_columns[i].width();
-                            if (m_iterators[i] != m_columns[i].end())
-                            {
-                                std::string col = *m_iterators[i];
-                                row += padding + col;
-                                if (col.size() < width)
-                                    padding = std::string(width - col.size(), ' ');
-                                else
-                                    padding = "";
-                            }
-                            else
-                            {
-                                padding += std::string(width, ' ');
-                            }
-                        }
-                        return row;
-                    }
-                    auto operator++() -> iterator &
-                    {
-                        for (size_t i = 0; i < m_columns.size(); ++i)
-                        {
-                            if (m_iterators[i] != m_columns[i].end())
-                                ++m_iterators[i];
-                        }
-                        return *this;
-                    }
-                    auto operator++(int) -> iterator
-                    {
-                        iterator prev(*this);
-                        operator++();
-                        return prev;
-                    }
-                };
-                using const_iterator = iterator;
-
-                auto begin() const -> iterator { return iterator(*this); }
-                auto end() const -> iterator { return {*this, iterator::EndTag()}; }
-
-                auto operator+=(Column const &col) -> Columns &
-                {
-                    m_columns.push_back(col);
-                    return *this;
-                }
-                auto operator+(Column const &col) -> Columns
-                {
-                    Columns combined = *this;
-                    combined += col;
-                    return combined;
-                }
-
-                inline friend std::ostream &operator<<(std::ostream &os, Columns const &cols)
-                {
-
-                    bool first = true;
-                    for (auto line : cols)
-                    {
-                        if (first)
-                            first = false;
-                        else
-                            os << "\n";
-                        os << line;
-                    }
-                    return os;
-                }
-
-                auto toString() const -> std::string
-                {
-                    std::ostringstream oss;
-                    oss << *this;
-                    return oss.str();
-                }
-            };
-
-            inline auto Column::operator+(Column const &other) -> Columns
-            {
-                Columns cols;
-                cols += *this;
-                cols += other;
-                return cols;
-            }
-        }
     }
 
 #ifndef ARGPARSER_NO_EXCEPTIONS
@@ -632,56 +250,550 @@ namespace argparser
 
 #endif // ARGPARSER_NO_EXCEPTIONS
 
+    /**
+     * @class HelpFormatter
+     * @brief Advanced help message formatter with colors, sections, and extensive customization.
+     *
+     * Features:
+     * - ANSI color codes and custom themes
+     * - Automatic text wrapping with configurable width
+     * - Logical sections for organizing arguments
+     * - Custom usage patterns and epilog messages
+     * - Multiple output formats (plain, colored, markdown-ready)
+     * - Customizable indentation and alignment
+     * - Support for examples, notes, and warnings sections
+     * - Column width auto-detection and customization
+     */
     class HelpFormatter
     {
     public:
+        /**
+         * @enum Color - ANSI color codes for terminal output
+         */
+        enum class Color
+        {
+            Reset = 0,
+            Bold = 1,
+            Dim = 2,
+            Italic = 3,
+            Underline = 4,
+            Blink = 5,
+            Reverse = 7,
+            Hidden = 8,
+            Black = 30,
+            Red = 31,
+            Green = 32,
+            Yellow = 33,
+            Blue = 34,
+            Magenta = 35,
+            Cyan = 36,
+            White = 37,
+            Default = 39,
+            BgBlack = 40,
+            BgRed = 41,
+            BgGreen = 42,
+            BgYellow = 43,
+            BgBlue = 44,
+            BgMagenta = 45,
+            BgCyan = 46,
+            BgWhite = 47,
+            BgDefault = 49
+        };
+
+        /**
+         * @enum OutputFormat - Different help output formats
+         */
+        enum class OutputFormat
+        {
+            Plain,    ///< Plain text without colors
+            Colored,  ///< Text with ANSI colors
+            Markdown, ///< Markdown format
+            Compact   ///< Compact format (single-line descriptions)
+        };
+
+        /**
+         * @struct ColorTheme - Color scheme for help messages
+         */
+        struct ColorTheme
+        {
+            Color usage_color = Color::Green;
+            Color heading_color = Color::Bold;
+            Color section_color = Color::Cyan;
+            Color option_color = Color::Blue;
+            Color metavar_color = Color::Yellow;
+            Color required_color = Color::Red;
+            Color description_color = Color::Default;
+            Color examples_color = Color::Green;
+            Color notes_color = Color::Magenta;
+            Color warnings_color = Color::Red;
+            bool enabled = true;
+        };
+
+        /**
+         * @struct Alignment - Layout configuration
+         */
+        struct Alignment
+        {
+            size_t max_help_position = 24;
+            size_t option_width = 20;
+            size_t indent_size = 2;
+            char indent_char = ' ';
+            bool wrap_help_text = true;
+            size_t min_description_width = 20;
+        };
+
+        /**
+         * @class Section - Logical grouping of help content
+         */
         class Section
         {
-            friend class HelpFormatter;
+        public:
+            enum class Type
+            {
+                Arguments, ///< Arguments section
+                Examples,  ///< Usage examples
+                Notes,     ///< Additional notes
+                Warnings,  ///< Warning messages
+                Custom     ///< Custom section
+            };
+
+            explicit Section(const std::string &title = "", const std::string &description = "",
+                             Type type = Type::Custom)
+                : m_Title(title), m_Description(description), m_Type(type) {}
+
+            Section &add_item(const std::string &option, const std::string &metavar,
+                              const std::string &help, bool required = false)
+            {
+                m_Items.push_back({option, metavar, help, required});
+                return *this;
+            }
+
+            Section &add_text(const std::string &text)
+            {
+                m_Texts.push_back(text);
+                return *this;
+            }
+
+            Section &add_example(const std::string &command, const std::string &description)
+            {
+                m_Examples.push_back({command, description});
+                return *this;
+            }
+
+            Section &set_visible(bool visible)
+            {
+                m_Visible = visible;
+                return *this;
+            }
+
+            const std::string &title() const { return m_Title; }
+            const std::string &description() const { return m_Description; }
+            Type type() const { return m_Type; }
+            bool visible() const { return m_Visible; }
 
         private:
-            std::vector<Section> m_Sections;
-            HelpFormatter *m_Formatter;
-            std::string m_Heading;
+            friend class HelpFormatter;
+
+            struct Item
+            {
+                std::string option;
+                std::string metavar;
+                std::string help;
+                bool required;
+            };
+
+            struct Example
+            {
+                std::string command;
+                std::string description;
+            };
+
+            std::string m_Title;
+            std::string m_Description;
+            Type m_Type;
+            bool m_Visible = true;
+            std::vector<Item> m_Items;
+            std::vector<std::string> m_Texts;
+            std::vector<Example> m_Examples;
         };
 
     public:
-        HelpFormatter(std::string program = "", int width = 0, int indent = 4)
+        /**
+         * @brief Constructs HelpFormatter with configuration
+         */
+        explicit HelpFormatter(size_t width = 80, const std::string &prog_name = "")
+            : m_Width(width), m_ProgramName(prog_name), m_Theme(ColorTheme()),
+              m_Format(OutputFormat::Colored)
         {
-            m_Width = width;
-            m_Indent = indent;
-            m_Level = 0;
-            m_CIndent = 0;
-        };
+            if (m_Width == 0)
+                m_Width = get_terminal_width();
+        }
 
-        HelpFormatter &add_help() {};
-        HelpFormatter &add_text(std::string text) {};
-        HelpFormatter &add_usage(std::string usage, std::vector<std::string> args) {};
+        // === Configuration Methods ===
+
+        HelpFormatter &program_name(const std::string &name)
+        {
+            m_ProgramName = name;
+            return *this;
+        }
+
+        HelpFormatter &width(size_t width)
+        {
+            m_Width = width ? width : get_terminal_width();
+            return *this;
+        }
+
+        HelpFormatter &use_color(bool enable)
+        {
+            m_Theme.enabled = enable;
+            return *this;
+        }
+
+        HelpFormatter &color_theme(const ColorTheme &theme)
+        {
+            m_Theme = theme;
+            return *this;
+        }
+
+        HelpFormatter &alignment(const Alignment &align)
+        {
+            m_Alignment = align;
+            return *this;
+        }
+
+        HelpFormatter &output_format(OutputFormat format)
+        {
+            m_Format = format;
+            return *this;
+        }
+
+        HelpFormatter &usage(const std::string &usage)
+        {
+            m_CustomUsage = usage;
+            return *this;
+        }
+
+        HelpFormatter &epilog(const std::string &epilog)
+        {
+            m_Epilog = epilog;
+            return *this;
+        }
+
+        HelpFormatter &description(const std::string &description)
+        {
+            m_Description = description;
+            return *this;
+        }
+
+        HelpFormatter &add_prefix_info(const std::string &info)
+        {
+            m_PrefixInfo = info;
+            return *this;
+        }
+
+        HelpFormatter &add_suffix_info(const std::string &info)
+        {
+            m_SuffixInfo = info;
+            return *this;
+        }
+
+        HelpFormatter &set_line_separator(const std::string &sep)
+        {
+            m_LineSeparator = sep;
+            return *this;
+        }
+
+        HelpFormatter &sort_sections(bool sort)
+        {
+            m_SortSections = sort;
+            return *this;
+        }
+
+        // === Section Management ===
+
+        Section &add_section(const std::string &title, const std::string &description = "",
+                             Section::Type type = Section::Type::Custom)
+        {
+            m_Sections.emplace_back(title, description, type);
+            return m_Sections.back();
+        }
+
+        Section &add_examples_section()
+        {
+            return add_section("Examples", "", Section::Type::Examples);
+        }
+
+        Section &add_notes_section()
+        {
+            return add_section("Notes", "", Section::Type::Notes);
+        }
+
+        Section &add_warnings_section()
+        {
+            return add_section("Warnings", "", Section::Type::Warnings);
+        }
+
+        Section &get_or_create_section(const std::string &title, const std::string &description = "",
+                                       Section::Type type = Section::Type::Custom)
+        {
+            for (auto &section : m_Sections)
+            {
+                if (section.title() == title)
+                    return section;
+            }
+            return add_section(title, description, type);
+        }
+
+        // === Getter Methods ===
+
+        const std::string &program_name() const { return m_ProgramName; }
+        size_t width() const { return m_Width; }
+        ColorTheme &color_theme() { return m_Theme; }
+        const ColorTheme &color_theme() const { return m_Theme; }
+        Alignment &alignment() { return m_Alignment; }
+        const Alignment &alignment() const { return m_Alignment; }
+        const std::string &usage() const { return m_CustomUsage; }
+        const std::string &epilog() const { return m_Epilog; }
+        const std::string &description() const { return m_Description; }
+
+        // === Formatting Methods ===
+
+        std::string format_help() const
+        {
+            std::ostringstream oss;
+
+            if (!m_PrefixInfo.empty())
+                oss << m_PrefixInfo << "\n";
+
+            if (!m_CustomUsage.empty())
+            {
+                oss << format_colored("usage: ", get_color_for_format(Color::Green))
+                    << m_CustomUsage << "\n\n";
+            }
+            else if (!m_ProgramName.empty())
+            {
+                oss << format_colored("usage: ", get_color_for_format(Color::Green))
+                    << m_ProgramName << " [options] [arguments]\n\n";
+            }
+
+            if (!m_Description.empty())
+                oss << wrap_text(m_Description, 0) << "\n\n";
+
+            if (!m_LineSeparator.empty())
+                oss << m_LineSeparator << "\n";
+
+            for (const auto &section : m_Sections)
+            {
+                if (section.visible())
+                    oss << format_section(section);
+            }
+
+            if (!m_LineSeparator.empty() && !m_Epilog.empty())
+                oss << m_LineSeparator << "\n";
+
+            if (!m_Epilog.empty())
+                oss << "\n"
+                    << wrap_text(m_Epilog, 0) << "\n";
+
+            if (!m_SuffixInfo.empty())
+                oss << "\n"
+                    << m_SuffixInfo << "\n";
+
+            return oss.str();
+        }
+
+        std::string format_section(const Section &section) const
+        {
+            std::ostringstream oss;
+
+            if (!section.title().empty())
+            {
+                Color heading = (m_Format == OutputFormat::Compact) ? Color::Default : m_Theme.heading_color;
+                oss << format_colored(section.title() + ":", heading) << "\n";
+            }
+
+            if (!section.description().empty())
+                oss << wrap_text(section.description(), m_Alignment.indent_size) << "\n\n";
+
+            for (const auto &item : section.m_Items)
+                oss << format_item(item) << "\n";
+
+            for (const auto &example : section.m_Examples)
+                oss << format_example(example) << "\n";
+
+            for (const auto &text : section.m_Texts)
+                oss << wrap_text(text, m_Alignment.indent_size) << "\n";
+
+            oss << "\n";
+            return oss.str();
+        }
+
+        std::string format_usage(const std::string &pattern, const std::vector<std::string> &arguments) const
+        {
+            std::ostringstream oss;
+            oss << format_colored("usage: ", get_color_for_format(Color::Green)) << m_ProgramName << " ";
+            if (!pattern.empty())
+                oss << pattern;
+            else
+            {
+                for (size_t i = 0; i < arguments.size(); ++i)
+                {
+                    if (i > 0)
+                        oss << " ";
+                    oss << arguments[i];
+                }
+            }
+            return oss.str();
+        }
+
+        std::string wrap_text(const std::string &text, size_t indent_level = 0) const
+        {
+            if (!m_Alignment.wrap_help_text)
+                return text;
+
+            std::vector<std::string> words;
+            std::istringstream iss(text);
+            std::string word;
+            while (iss >> word)
+                words.push_back(word);
+            return wrap_words(words, indent_level);
+        }
+
+        std::string colorize(const std::string &text, Color color) const
+        {
+            if (m_Format == OutputFormat::Plain || !m_Theme.enabled)
+                return text;
+            return format_colored(text, color);
+        }
 
     private:
-        std::string format_help() {};
-        std::string format_text(std::string text) {};
-        std::string format_usage(std::string usage, std::vector<std::string> args) {};
+        static size_t get_terminal_width()
+        {
+#ifdef _WIN32
+            return 80;
+#else
+            FILE *fp = popen("tput cols 2>/dev/null", "r");
+            if (fp)
+            {
+                int width = 0;
+                if (fscanf(fp, "%d", &width) == 1)
+                {
+                    pclose(fp);
+                    return width > 0 ? width : 80;
+                }
+                pclose(fp);
+            }
+            return 80;
+#endif
+        }
+
+        Color get_color_for_format(Color default_color) const
+        {
+            return (m_Format == OutputFormat::Plain || !m_Theme.enabled) ? Color::Default : default_color;
+        }
+
+        std::string format_colored(const std::string &text, Color color) const
+        {
+            if (m_Format == OutputFormat::Plain || !m_Theme.enabled || color == Color::Default)
+                return text;
+
+            std::ostringstream oss;
+            oss << "\033[" << static_cast<int>(color) << "m" << text << "\033[0m";
+            return oss.str();
+        }
+
+        std::string wrap_words(const std::vector<std::string> &words, size_t indent_level) const
+        {
+            std::ostringstream oss;
+            const std::string indent(indent_level * m_Alignment.indent_size, m_Alignment.indent_char);
+            size_t line_length = indent_level * m_Alignment.indent_size;
+            bool first_line = true;
+
+            for (const auto &word : words)
+            {
+                size_t word_len = word.length();
+
+                if (line_length + word_len + 1 <= m_Width)
+                {
+                    if (!first_line && line_length > indent_level * m_Alignment.indent_size)
+                    {
+                        oss << " ";
+                        line_length++;
+                    }
+                    oss << word;
+                    line_length += word_len;
+                }
+                else
+                {
+                    oss << "\n"
+                        << indent << word;
+                    line_length = indent_level * m_Alignment.indent_size + word_len;
+                }
+                first_line = false;
+            }
+
+            return oss.str();
+        }
+
+        std::string format_item(const Section::Item &item) const
+        {
+            std::ostringstream oss;
+            const std::string indent(m_Alignment.indent_size, m_Alignment.indent_char);
+
+            oss << indent;
+
+            std::string option_str = item.option;
+            if (item.required)
+                option_str += format_colored(" [REQUIRED]", m_Theme.required_color);
+
+            oss << format_colored(option_str, m_Theme.option_color);
+
+            if (!item.metavar.empty())
+                oss << " " << format_colored(item.metavar, m_Theme.metavar_color);
+
+            size_t current_pos = item.option.length();
+            if (!item.metavar.empty())
+                current_pos += item.metavar.length() + 1;
+            current_pos += m_Alignment.indent_size;
+
+            size_t help_start_pos = m_Alignment.max_help_position;
+            if (current_pos < help_start_pos)
+                oss << std::string(help_start_pos - current_pos, ' ');
+            else
+                oss << "  ";
+
+            oss << wrap_text(item.help, help_start_pos / m_Alignment.indent_size);
+
+            return oss.str();
+        }
+
+        std::string format_example(const Section::Example &example) const
+        {
+            std::ostringstream oss;
+            const std::string indent(m_Alignment.indent_size, m_Alignment.indent_char);
+
+            oss << indent << "  $ " << format_colored(example.command, m_Theme.examples_color);
+            if (!example.description.empty())
+                oss << "\n"
+                    << wrap_text(example.description, m_Alignment.indent_size + 2);
+
+            return oss.str();
+        }
 
     private:
-        void indent()
-        {
-            m_CIndent += m_Indent;
-            m_Level += 1;
-        };
-
-        void dedent()
-        {
-            m_CIndent -= m_Indent;
-            m_Level -= 1;
-        };
-
-    private:
+        size_t m_Width;
+        std::string m_ProgramName;
+        std::string m_CustomUsage;
+        std::string m_Epilog;
+        std::string m_Description;
+        std::string m_PrefixInfo;
+        std::string m_SuffixInfo;
+        std::string m_LineSeparator;
+        bool m_SortSections = false;
         std::vector<Section> m_Sections;
-        int m_Width;
-        int m_Level;
-        int m_Indent;
-        int m_CIndent;
+        ColorTheme m_Theme;
+        Alignment m_Alignment;
+        OutputFormat m_Format;
     };
 
     class Namespace
@@ -1034,8 +1146,13 @@ namespace argparser
             : m_Program(std::move(program)),
               m_Description(std::move(description)),
               m_Epilog(std::move(epilog)),
-              m_HelpFormatter(HelpFormatter())
+              m_HelpFormatter(HelpFormatter(80, m_Program))
         {
+            // Initialize formatter with default settings
+            m_HelpFormatter.program_name(m_Program)
+                .description(m_Description)
+                .epilog(m_Epilog);
+
             if (m_AddHelp)
             {
                 add_argument("-h", "--help")
@@ -1045,10 +1162,20 @@ namespace argparser
             }
         }
 
+        std::string &program()
+        {
+            return m_Program;
+        };
+
         ArgumentParser &program(std::string program)
         {
             m_Program = program;
             return *this;
+        };
+
+        std::string &usage()
+        {
+            return m_Usage;
         };
 
         ArgumentParser &usage(std::string usage)
@@ -1057,10 +1184,20 @@ namespace argparser
             return *this;
         };
 
+        std::string &epilog()
+        {
+            return m_Epilog;
+        };
+
         ArgumentParser &epilog(std::string epilog)
         {
             m_Epilog = epilog;
             return *this;
+        };
+
+        HelpFormatter &formatter()
+        {
+            return m_HelpFormatter;
         };
 
         ArgumentParser &formatter(HelpFormatter formatter)
@@ -1069,11 +1206,252 @@ namespace argparser
             return *this;
         };
 
+        std::string &description()
+        {
+            return m_Description;
+        };
+
         ArgumentParser &description(std::string description)
         {
             m_Description = description;
             return *this;
         };
+
+        ArgumentParser &set_help_description(const std::string &description)
+        {
+            m_Description = description;
+            return *this;
+        }
+
+        /**
+         * @brief Gets the formatted help message
+         * @return The complete help text
+         */
+        std::string get_help() const
+        {
+            HelpFormatter fmt = m_HelpFormatter;
+            fmt.program_name(m_Program)
+                .usage(m_Usage)
+                .description(m_Description)
+                .epilog(m_Epilog);
+
+            // Add optional arguments section
+            auto &opt_section = const_cast<HelpFormatter &>(fmt).add_section("optional arguments");
+            for (const auto &arg : m_Arguments)
+            {
+                if (arg.m_Kind == Argument::Kind::Optional)
+                {
+                    std::string opt_str;
+                    for (size_t i = 0; i < arg.m_OptionNames.size(); ++i)
+                    {
+                        if (i > 0)
+                            opt_str += ", ";
+                        opt_str += arg.m_OptionNames[i];
+                    }
+
+                    std::string metavar = arg.m_Metavar;
+                    if (metavar.empty() && arg.takes_value())
+                    {
+                        metavar = arg.m_Dest;
+                        std::transform(metavar.begin(), metavar.end(), metavar.begin(),
+                                       [](unsigned char c)
+                                       { return static_cast<char>(std::toupper(c)); });
+                    }
+
+                    opt_section.add_item(opt_str, metavar, arg.m_Help, arg.m_Required);
+                }
+            }
+
+            // Add positional arguments section if any
+            bool has_positional = false;
+            for (const auto &arg : m_Arguments)
+            {
+                if (arg.m_Kind == Argument::Kind::Positional)
+                {
+                    has_positional = true;
+                    break;
+                }
+            }
+
+            if (has_positional)
+            {
+                auto &pos_section = const_cast<HelpFormatter &>(fmt).add_section("positional arguments");
+                for (const auto &arg : m_Arguments)
+                {
+                    if (arg.m_Kind == Argument::Kind::Positional)
+                    {
+                        pos_section.add_item(arg.m_Dest, "", arg.m_Help, arg.m_Required);
+                    }
+                }
+            }
+
+            return fmt.format_help();
+        }
+
+        /**
+         * @brief Prints the help message to stdout
+         */
+        void print_help() const
+        {
+            std::cout << get_help();
+        }
+
+        /**
+         * @brief Sets the output format for help messages
+         * @param format The desired output format (plain, colored, markdown, compact)
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &set_help_format(HelpFormatter::OutputFormat format)
+        {
+            m_HelpFormatter.output_format(format);
+            return *this;
+        }
+
+        /**
+         * @brief Adds usage examples to the help message
+         * @param command The example command to run
+         * @param description Description of what the command does
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &add_example(const std::string &command, const std::string &description = "")
+        {
+            auto &examples_section = m_HelpFormatter.get_or_create_section("Examples", "", HelpFormatter::Section::Type::Examples);
+            examples_section.add_example(command, description);
+            return *this;
+        }
+
+        /**
+         * @brief Adds a note to the help message
+         * @param note The note text
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &add_note(const std::string &note)
+        {
+            auto &notes_section = m_HelpFormatter.get_or_create_section("Notes", "", HelpFormatter::Section::Type::Notes);
+            notes_section.add_text(note);
+            return *this;
+        }
+
+        /**
+         * @brief Adds a warning to the help message
+         * @param warning The warning text
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &add_warning(const std::string &warning)
+        {
+            auto &warnings_section = m_HelpFormatter.get_or_create_section("Warnings", "", HelpFormatter::Section::Type::Warnings);
+            warnings_section.add_text(warning);
+            return *this;
+        }
+
+        /**
+         * @brief Sets prefix information (displayed before usage)
+         * @param info The prefix text
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &set_prefix_info(const std::string &info)
+        {
+            m_HelpFormatter.add_prefix_info(info);
+            return *this;
+        }
+
+        /**
+         * @brief Sets suffix information (displayed at the end)
+         * @param info The suffix text
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &set_suffix_info(const std::string &info)
+        {
+            m_HelpFormatter.add_suffix_info(info);
+            return *this;
+        }
+
+        /**
+         * @brief Sets a line separator in the help text
+         * @param separator The separator string (e.g., "=" or "-")
+         * @param width The width of the separator
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &set_line_separator(const std::string &separator = std::string(80, '-'))
+        {
+            m_HelpFormatter.set_line_separator(separator);
+            return *this;
+        }
+
+        /**
+         * @brief Enables or disables help text color output
+         * @param enable True to enable colors
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &use_help_colors(bool enable)
+        {
+            m_HelpFormatter.use_color(enable);
+            return *this;
+        }
+
+        /**
+         * @brief Sets custom help text width
+         * @param width Width in characters (0 = auto-detect)
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &set_help_width(size_t width)
+        {
+            m_HelpFormatter.width(width);
+            return *this;
+        }
+
+        /**
+         * @brief Customizes the color theme for help messages
+         * @param theme The color theme configuration
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &set_color_theme(const HelpFormatter::ColorTheme &theme)
+        {
+            m_HelpFormatter.color_theme(theme);
+            return *this;
+        }
+
+        /**
+         * @brief Customizes alignment settings for help text
+         * @param alignment The alignment configuration
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &set_help_alignment(const HelpFormatter::Alignment &alignment)
+        {
+            m_HelpFormatter.alignment(alignment);
+            return *this;
+        }
+
+        /**
+         * @brief Configures help formatter with all settings
+         * @param format Output format
+         * @param use_colors Enable/disable color output
+         * @param width Terminal width for wrapping
+         * @return Reference to this parser for chaining
+         */
+        ArgumentParser &configure_help(HelpFormatter::OutputFormat format, bool use_colors = true, size_t width = 80)
+        {
+            m_HelpFormatter.output_format(format).use_color(use_colors).width(width);
+            return *this;
+        }
+
+        /**
+         * @brief Gets a reference to the HelpFormatter for direct manipulation
+         * @return Reference to the internal HelpFormatter
+         */
+        HelpFormatter &get_formatter()
+        {
+            return m_HelpFormatter;
+        }
+
+        /**
+         * @brief Gets a const reference to the HelpFormatter
+         * @return Const reference to the internal HelpFormatter
+         */
+        const HelpFormatter &get_formatter() const
+        {
+            return m_HelpFormatter;
+        }
 
         template <typename... Names>
         Argument &add_argument(const Names &...names)

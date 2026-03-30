@@ -28,7 +28,7 @@ int main(int argc, char **argv)
     }
     catch (const argparser::HelpError &)
     {
-        parser.print_help();
+        parser.print_help(std::cout);
         return 0;
     }
     catch (const argparser::UsageError &)
