@@ -197,6 +197,11 @@
 namespace argparser
 {
 
+}
+
+namespace argparser
+{
+
 #ifndef ARGPARSER_NO_EXCEPTIONS
 
     class ArgumentError : public std::runtime_error
@@ -521,7 +526,7 @@ namespace argparser
          * @param separator The separator string (e.g., "=" or "-")
          * @return Reference to this helpformatter.
          */
-        HelpFormatter &set_line_separator(const std::string &separator)
+        HelpFormatter &line_separator(const std::string &separator)
         {
             m_LineSeparator = separator;
             return *this;
@@ -533,9 +538,9 @@ namespace argparser
          * @param width The width of the separator
          * @return Reference to this helpformatter.
          */
-        HelpFormatter &set_line_separator(const char sep = '-', int width = 80)
+        HelpFormatter &line_separator(const char sep = '-', int width = 80)
         {
-            set_line_separator(std::string(width, sep));
+            line_separator(std::string(width, sep));
             return *this;
         }
 
@@ -554,23 +559,8 @@ namespace argparser
             return m_Sections.back();
         }
 
-        Section &add_examples_section()
-        {
-            return add_section("Examples", "", Section::Type::Examples);
-        }
-
-        Section &add_notes_section()
-        {
-            return add_section("Notes", "", Section::Type::Notes);
-        }
-
-        Section &add_warnings_section()
-        {
-            return add_section("Warnings", "", Section::Type::Warnings);
-        }
-
-        Section &get_or_create_section(const std::string &title, const std::string &description = "",
-                                       Section::Type type = Section::Type::Custom)
+        Section &get_section(const std::string &title, const std::string &description = "",
+                             Section::Type type = Section::Type::Custom)
         {
             for (auto &section : m_Sections)
             {
@@ -594,6 +584,7 @@ namespace argparser
 
         // === Formatting Methods ===
 
+        // std::string format_help(const std::vector<ArgumentParser::Argument> *arguments = nullptr) const
         std::string format_help() const
         {
             std::ostringstream oss;
@@ -638,6 +629,14 @@ namespace argparser
             return oss.str();
         }
 
+        // std::string format_usage(const std::vector<ArgumentParser::Argument> *arguments = nullptr) const
+        std::string format_usage() const
+        {
+            std::ostringstream oss;
+            oss << format_colored("usage: ", get_color_for_format(Color::Green)) << m_Program << " ";
+            return oss.str();
+        }
+
         std::string format_section(const Section &section) const
         {
             std::ostringstream oss;
@@ -645,7 +644,8 @@ namespace argparser
             if (!section.title().empty())
             {
                 Color heading = (m_Format == Format::Compact) ? Color::Default : m_Theme.heading_color;
-                oss << format_colored(section.title() + ":", heading) << "\n";
+                // oss << format_colored(section.title() + ":", heading) << "\n";
+                oss << format_colored(section.title() + ":", heading);
             }
 
             if (!section.description().empty())
@@ -661,24 +661,6 @@ namespace argparser
                 oss << wrap_text(text, m_Alignment.indent_size) << "\n";
 
             oss << "\n";
-            return oss.str();
-        }
-
-        std::string format_usage(const std::string &pattern, const std::vector<std::string> &arguments) const
-        {
-            std::ostringstream oss;
-            oss << format_colored("usage: ", get_color_for_format(Color::Green)) << m_Program << " ";
-            if (!pattern.empty())
-                oss << pattern;
-            else
-            {
-                for (size_t i = 0; i < arguments.size(); ++i)
-                {
-                    if (i > 0)
-                        oss << " ";
-                    oss << arguments[i];
-                }
-            }
             return oss.str();
         }
 
@@ -1254,10 +1236,10 @@ namespace argparser
         };
 
         /**
-         * @brief Gets the formatted help message
+         * @brief Format help message
          * @return The complete help text
          */
-        std::string get_help() const
+        std::string format_help() const
         {
             HelpFormatter fmt = m_HelpFormatter;
             fmt.program(m_Program)
@@ -1315,61 +1297,24 @@ namespace argparser
                 }
             }
 
+            // return fmt.format_help(const_cast<std::vector<Argument> *>(&m_Arguments));
             return fmt.format_help();
         }
 
         /**
-         * @brief Prints the help message to stdout
+         * @brief Format usage message
+         * @return The complete usage text
          */
-        void print_help() const
+        std::string format_usage() const
         {
-            std::cout << get_help();
-        }
+            HelpFormatter fmt = m_HelpFormatter;
+            fmt.program(m_Program)
+                .usage(m_Usage)
+                .description(m_Description)
+                .epilog(m_Epilog);
 
-        /**
-         * @brief Adds usage examples to the help message
-         * @param command The example command to run
-         * @param description Description of what the command does
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &add_example(const std::string &command, const std::string &description = "")
-        {
-            auto &examples_section = m_HelpFormatter.get_or_create_section("Examples", "", HelpFormatter::Section::Type::Examples);
-            examples_section.add_example(command, description);
-            return *this;
-        }
-
-        /**
-         * @brief Adds a note to the help message
-         * @param note The note text
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &add_note(const std::string &note)
-        {
-            auto &notes_section = m_HelpFormatter.get_or_create_section("Notes", "", HelpFormatter::Section::Type::Notes);
-            notes_section.add_text(note);
-            return *this;
-        }
-
-        /**
-         * @brief Adds a warning to the help message
-         * @param warning The warning text
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &add_warning(const std::string &warning)
-        {
-            auto &warnings_section = m_HelpFormatter.get_or_create_section("Warnings", "", HelpFormatter::Section::Type::Warnings);
-            warnings_section.add_text(warning);
-            return *this;
-        }
-
-        /**
-         * @brief Gets a reference to the HelpFormatter for direct manipulation
-         * @return Reference to the internal HelpFormatter
-         */
-        HelpFormatter &get_formatter()
-        {
-            return m_HelpFormatter;
+            // return fmt.format_usage(const_cast<std::vector<Argument> *>(&m_Arguments));
+            return fmt.format_usage();
         }
 
         /**
@@ -1519,109 +1464,19 @@ namespace argparser
             return m_Namespace;
         }
 
-        std::string format_usage() const
-        {
-            std::ostringstream out;
-            out << "Usage: " << (m_Program.empty() ? "program" : m_Program);
-            return out.str();
-        }
-
-        std::string format_help() const
-        {
-            std::ostringstream out;
-
-            for (const auto &arg : m_Arguments)
-            {
-                if (arg.m_Kind == Argument::Kind::Optional)
-                {
-                    std::string head = arg.m_OptionNames.empty() ? arg.m_Dest : arg.m_OptionNames.back();
-                    if (arg.takes_value())
-                    {
-                        const std::string mv = arg.m_Metavar.empty() ? to_upper(arg.m_Dest) : arg.m_Metavar;
-                        if (arg.m_NargsMin == 0 && arg.m_NargsMax == 1)
-                        {
-                            out << " [" << head << " [" << mv << "]" << "]";
-                        }
-                        else
-                        {
-                            out << " [" << head << " " << mv;
-                            if (arg.is_unbounded())
-                            {
-                                out << " ...";
-                            }
-                            out << "]";
-                        }
-                    }
-                    else
-                    {
-                        out << " [" << head << "]";
-                    }
-                }
-            }
-
-            for (const auto idx : m_Positionals)
-            {
-                const auto &arg = m_Arguments[idx];
-                const std::string mv = arg.m_Metavar.empty() ? arg.m_Dest : arg.m_Metavar;
-                if (arg.m_NargsMin == 0 && arg.m_NargsMax == 1)
-                {
-                    out << " [" << mv << "]";
-                }
-                else if (arg.m_NargsMin == 0 && arg.is_unbounded())
-                {
-                    out << " [" << mv << " ...]";
-                }
-                else if (arg.m_NargsMin == 1 && arg.is_unbounded())
-                {
-                    out << " " << mv << " [" << mv << " ...]";
-                }
-                else
-                {
-                    for (std::size_t n = 0; n < arg.m_NargsMin; ++n)
-                    {
-                        out << " " << mv;
-                    }
-                }
-            }
-
-            out << '\n';
-
-            if (!m_Description.empty())
-            {
-                out << '\n'
-                    << m_Description << '\n';
-            }
-
-            out << '\n'
-                << "Arguments:" << '\n';
-            for (const auto &arg : m_Arguments)
-            {
-                out << "  " << argument_display(arg);
-                if (!arg.m_Help.empty())
-                {
-                    out << "\t" << arg.m_Help;
-                }
-                if (!arg.m_DefaultValues.empty())
-                {
-                    out << " (default: " << arg.m_DefaultValues.front() << ")";
-                }
-                out << '\n';
-            }
-
-            if (!m_Epilog.empty())
-            {
-                out << '\n'
-                    << m_Epilog << '\n';
-            }
-
-            return out.str();
-        }
-
+        /**
+         * @brief Prints the help message
+         * @param stream to write to (default=stdout).
+         */
         void print_help(std::ostream &stream = std::cout) const
         {
             stream << format_help();
         }
 
+        /**
+         * @brief Prints the usage message
+         * @param stream to write to (default=stdout).
+         */
         void print_usage(std::ostream &stream = std::cout) const
         {
             stream << format_usage();
@@ -1951,6 +1806,10 @@ namespace argparser
     };
 
     using Argparser = ArgumentParser;
+    using Formatter = HelpFormatter;
+    using Section = HelpFormatter::Section;
+    using Alignment = HelpFormatter::Alignment;
+    using ColorTheme = HelpFormatter::ColorTheme;
 
 } // namespace argparser
 
