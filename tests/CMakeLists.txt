@@ -59,3 +59,5 @@ file(GLOB TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.test.cpp")
 argparser_add_test(argparser-tests
                    SOURCES ${TEST_SOURCES}
                    DEPENDS Argparser::Argparser)
+
+# ===================================================================

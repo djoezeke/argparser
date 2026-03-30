@@ -186,19 +186,9 @@
  * @brief Configure file with user config.
  */
 
-#define BOLD 0
-#define NORMAL 1
-#define INTENSE 2
-#define BACKGROUND 3
-#define INTENSE_BACKGROUND 4
-
  #ifdef ARGPARSER_CONFIG
     #include ARGPARSER_CONFIG
 #endif // ARGPARSER_CONFIG
-
-#ifndef ARGPARSER_CONSOLE_WIDTH
-    #define ARGPARSER_CONSOLE_WIDTH 80
-#endif
 
 /** @} */
 
@@ -206,10 +196,6 @@
 
 namespace argparser
 {
-
-    namespace detail
-    {
-    }
 
 #ifndef ARGPARSER_NO_EXCEPTIONS
 
@@ -301,9 +287,9 @@ namespace argparser
         };
 
         /**
-         * @enum OutputFormat - Different help output formats
+         * @enum Format - Different help output formats
          */
-        enum class OutputFormat
+        enum class Format
         {
             Plain,    ///< Plain text without colors
             Colored,  ///< Text with ANSI colors
@@ -316,17 +302,17 @@ namespace argparser
          */
         struct ColorTheme
         {
+            bool enabled = true;
             Color usage_color = Color::Green;
+            Color option_color = Color::Blue;
+            Color warnings_color = Color::Red;
+            Color required_color = Color::Red;
             Color heading_color = Color::Bold;
             Color section_color = Color::Cyan;
-            Color option_color = Color::Blue;
-            Color metavar_color = Color::Yellow;
-            Color required_color = Color::Red;
-            Color description_color = Color::Default;
-            Color examples_color = Color::Green;
             Color notes_color = Color::Magenta;
-            Color warnings_color = Color::Red;
-            bool enabled = true;
+            Color examples_color = Color::Green;
+            Color metavar_color = Color::Yellow;
+            Color description_color = Color::Default;
         };
 
         /**
@@ -334,11 +320,11 @@ namespace argparser
          */
         struct Alignment
         {
-            size_t max_help_position = 24;
-            size_t option_width = 20;
             size_t indent_size = 2;
             char indent_char = ' ';
+            size_t option_width = 20;
             bool wrap_help_text = true;
+            size_t max_help_position = 24;
             size_t min_description_width = 20;
         };
 
@@ -350,11 +336,11 @@ namespace argparser
         public:
             enum class Type
             {
-                Arguments, ///< Arguments section
-                Examples,  ///< Usage examples
                 Notes,     ///< Additional notes
+                Custom,    ///< Custom section
+                Examples,  ///< Usage examples
                 Warnings,  ///< Warning messages
-                Custom     ///< Custom section
+                Arguments, ///< Arguments section
             };
 
             explicit Section(const std::string &title = "", const std::string &description = "",
@@ -422,54 +408,22 @@ namespace argparser
          * @brief Constructs HelpFormatter with configuration
          */
         explicit HelpFormatter(size_t width = 80, const std::string &prog_name = "")
-            : m_Width(width), m_ProgramName(prog_name), m_Theme(ColorTheme()),
-              m_Format(OutputFormat::Colored)
+            : m_Width(width), m_Program(prog_name), m_Theme(ColorTheme()),
+              m_Format(Format::Colored)
         {
             if (m_Width == 0)
                 m_Width = get_terminal_width();
         }
 
-        // === Configuration Methods ===
-
-        HelpFormatter &program_name(const std::string &name)
+        HelpFormatter &program(const std::string &name)
         {
-            m_ProgramName = name;
-            return *this;
-        }
-
-        HelpFormatter &width(size_t width)
-        {
-            m_Width = width ? width : get_terminal_width();
-            return *this;
-        }
-
-        HelpFormatter &use_color(bool enable)
-        {
-            m_Theme.enabled = enable;
-            return *this;
-        }
-
-        HelpFormatter &color_theme(const ColorTheme &theme)
-        {
-            m_Theme = theme;
-            return *this;
-        }
-
-        HelpFormatter &alignment(const Alignment &align)
-        {
-            m_Alignment = align;
-            return *this;
-        }
-
-        HelpFormatter &output_format(OutputFormat format)
-        {
-            m_Format = format;
+            m_Program = name;
             return *this;
         }
 
         HelpFormatter &usage(const std::string &usage)
         {
-            m_CustomUsage = usage;
+            m_Usage = usage;
             return *this;
         }
 
@@ -485,21 +439,103 @@ namespace argparser
             return *this;
         }
 
-        HelpFormatter &add_prefix_info(const std::string &info)
+        /**
+         * @brief Sets prefix information (displayed before usage)
+         * @param info The prefix text
+         * @return Reference to this helpformatter.
+         */
+        HelpFormatter &prefix_info(const std::string &info)
         {
             m_PrefixInfo = info;
             return *this;
         }
 
-        HelpFormatter &add_suffix_info(const std::string &info)
+        /**
+         * @brief Sets suffix information (displayed at the end)
+         * @param info The suffix text
+         * @return Reference to this helpformatter.
+         */
+        HelpFormatter &suffix_info(const std::string &info)
         {
             m_SuffixInfo = info;
             return *this;
         }
 
-        HelpFormatter &set_line_separator(const std::string &sep)
+        /**
+         * @brief Sets custom help text width
+         * @param width Width in characters (0 = auto-detect)
+         * @return Reference to this helpformatter.
+         */
+        HelpFormatter &width(size_t width)
         {
-            m_LineSeparator = sep;
+            m_Width = width ? width : get_terminal_width();
+            return *this;
+        }
+
+        /**
+         * @brief Customizes format for help text
+         * @param format Output format
+         * @return Reference to this helpformatter.
+         */
+        HelpFormatter &format(Format format)
+        {
+            m_Format = format;
+            return *this;
+        }
+
+        /**
+         * @brief Customizes alignment settings for help text
+         * @param alignment The alignment configuration
+         * @return Reference to this helpformatter.
+         */
+        HelpFormatter &alignment(const Alignment &align)
+        {
+            m_Alignment = align;
+            return *this;
+        }
+
+        /**
+         * @brief Enables or disables help text color output
+         * @param enable True to enable colors
+         * @return Reference to this helpformatter.
+         */
+        HelpFormatter &use_color(bool enable)
+        {
+            m_Theme.enabled = enable;
+            return *this;
+        }
+
+        /**
+         * @brief Customizes the color theme for help messages
+         * @param theme The color theme configuration
+         * @return Reference to this helpformatter.
+         */
+        HelpFormatter &color_theme(const ColorTheme &theme)
+        {
+            m_Theme = theme;
+            return *this;
+        }
+
+        /**
+         * @brief Sets a line separator in the help text
+         * @param separator The separator string (e.g., "=" or "-")
+         * @return Reference to this helpformatter.
+         */
+        HelpFormatter &set_line_separator(const std::string &separator)
+        {
+            m_LineSeparator = separator;
+            return *this;
+        }
+
+        /**
+         * @brief Sets a line separator in the help text
+         * @param separator The separator string (e.g., "=" or "-")
+         * @param width The width of the separator
+         * @return Reference to this helpformatter.
+         */
+        HelpFormatter &set_line_separator(const char sep = '-', int width = 80)
+        {
+            set_line_separator(std::string(width, sep));
             return *this;
         }
 
@@ -546,13 +582,13 @@ namespace argparser
 
         // === Getter Methods ===
 
-        const std::string &program_name() const { return m_ProgramName; }
+        const std::string &program() const { return m_Program; }
         size_t width() const { return m_Width; }
         ColorTheme &color_theme() { return m_Theme; }
         const ColorTheme &color_theme() const { return m_Theme; }
         Alignment &alignment() { return m_Alignment; }
         const Alignment &alignment() const { return m_Alignment; }
-        const std::string &usage() const { return m_CustomUsage; }
+        const std::string &usage() const { return m_Usage; }
         const std::string &epilog() const { return m_Epilog; }
         const std::string &description() const { return m_Description; }
 
@@ -565,15 +601,15 @@ namespace argparser
             if (!m_PrefixInfo.empty())
                 oss << m_PrefixInfo << "\n";
 
-            if (!m_CustomUsage.empty())
+            if (!m_Usage.empty())
             {
                 oss << format_colored("usage: ", get_color_for_format(Color::Green))
-                    << m_CustomUsage << "\n\n";
+                    << m_Usage << "\n\n";
             }
-            else if (!m_ProgramName.empty())
+            else if (!m_Program.empty())
             {
                 oss << format_colored("usage: ", get_color_for_format(Color::Green))
-                    << m_ProgramName << " [options] [arguments]\n\n";
+                    << m_Program << " [options] [arguments]\n\n";
             }
 
             if (!m_Description.empty())
@@ -608,7 +644,7 @@ namespace argparser
 
             if (!section.title().empty())
             {
-                Color heading = (m_Format == OutputFormat::Compact) ? Color::Default : m_Theme.heading_color;
+                Color heading = (m_Format == Format::Compact) ? Color::Default : m_Theme.heading_color;
                 oss << format_colored(section.title() + ":", heading) << "\n";
             }
 
@@ -631,7 +667,7 @@ namespace argparser
         std::string format_usage(const std::string &pattern, const std::vector<std::string> &arguments) const
         {
             std::ostringstream oss;
-            oss << format_colored("usage: ", get_color_for_format(Color::Green)) << m_ProgramName << " ";
+            oss << format_colored("usage: ", get_color_for_format(Color::Green)) << m_Program << " ";
             if (!pattern.empty())
                 oss << pattern;
             else
@@ -661,7 +697,7 @@ namespace argparser
 
         std::string colorize(const std::string &text, Color color) const
         {
-            if (m_Format == OutputFormat::Plain || !m_Theme.enabled)
+            if (m_Format == Format::Plain || !m_Theme.enabled)
                 return text;
             return format_colored(text, color);
         }
@@ -689,12 +725,12 @@ namespace argparser
 
         Color get_color_for_format(Color default_color) const
         {
-            return (m_Format == OutputFormat::Plain || !m_Theme.enabled) ? Color::Default : default_color;
+            return (m_Format == Format::Plain || !m_Theme.enabled) ? Color::Default : default_color;
         }
 
         std::string format_colored(const std::string &text, Color color) const
         {
-            if (m_Format == OutputFormat::Plain || !m_Theme.enabled || color == Color::Default)
+            if (m_Format == Format::Plain || !m_Theme.enabled || color == Color::Default)
                 return text;
 
             std::ostringstream oss;
@@ -782,8 +818,8 @@ namespace argparser
 
     private:
         size_t m_Width;
-        std::string m_ProgramName;
-        std::string m_CustomUsage;
+        std::string m_Program;
+        std::string m_Usage;
         std::string m_Epilog;
         std::string m_Description;
         std::string m_PrefixInfo;
@@ -793,7 +829,7 @@ namespace argparser
         std::vector<Section> m_Sections;
         ColorTheme m_Theme;
         Alignment m_Alignment;
-        OutputFormat m_Format;
+        Format m_Format;
     };
 
     class Namespace
@@ -1149,7 +1185,7 @@ namespace argparser
               m_HelpFormatter(HelpFormatter(80, m_Program))
         {
             // Initialize formatter with default settings
-            m_HelpFormatter.program_name(m_Program)
+            m_HelpFormatter.program(m_Program)
                 .description(m_Description)
                 .epilog(m_Epilog);
 
@@ -1217,12 +1253,6 @@ namespace argparser
             return *this;
         };
 
-        ArgumentParser &set_help_description(const std::string &description)
-        {
-            m_Description = description;
-            return *this;
-        }
-
         /**
          * @brief Gets the formatted help message
          * @return The complete help text
@@ -1230,7 +1260,7 @@ namespace argparser
         std::string get_help() const
         {
             HelpFormatter fmt = m_HelpFormatter;
-            fmt.program_name(m_Program)
+            fmt.program(m_Program)
                 .usage(m_Usage)
                 .description(m_Description)
                 .epilog(m_Epilog);
@@ -1297,17 +1327,6 @@ namespace argparser
         }
 
         /**
-         * @brief Sets the output format for help messages
-         * @param format The desired output format (plain, colored, markdown, compact)
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &set_help_format(HelpFormatter::OutputFormat format)
-        {
-            m_HelpFormatter.output_format(format);
-            return *this;
-        }
-
-        /**
          * @brief Adds usage examples to the help message
          * @param command The example command to run
          * @param description Description of what the command does
@@ -1341,97 +1360,6 @@ namespace argparser
         {
             auto &warnings_section = m_HelpFormatter.get_or_create_section("Warnings", "", HelpFormatter::Section::Type::Warnings);
             warnings_section.add_text(warning);
-            return *this;
-        }
-
-        /**
-         * @brief Sets prefix information (displayed before usage)
-         * @param info The prefix text
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &set_prefix_info(const std::string &info)
-        {
-            m_HelpFormatter.add_prefix_info(info);
-            return *this;
-        }
-
-        /**
-         * @brief Sets suffix information (displayed at the end)
-         * @param info The suffix text
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &set_suffix_info(const std::string &info)
-        {
-            m_HelpFormatter.add_suffix_info(info);
-            return *this;
-        }
-
-        /**
-         * @brief Sets a line separator in the help text
-         * @param separator The separator string (e.g., "=" or "-")
-         * @param width The width of the separator
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &set_line_separator(const std::string &separator = std::string(80, '-'))
-        {
-            m_HelpFormatter.set_line_separator(separator);
-            return *this;
-        }
-
-        /**
-         * @brief Enables or disables help text color output
-         * @param enable True to enable colors
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &use_help_colors(bool enable)
-        {
-            m_HelpFormatter.use_color(enable);
-            return *this;
-        }
-
-        /**
-         * @brief Sets custom help text width
-         * @param width Width in characters (0 = auto-detect)
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &set_help_width(size_t width)
-        {
-            m_HelpFormatter.width(width);
-            return *this;
-        }
-
-        /**
-         * @brief Customizes the color theme for help messages
-         * @param theme The color theme configuration
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &set_color_theme(const HelpFormatter::ColorTheme &theme)
-        {
-            m_HelpFormatter.color_theme(theme);
-            return *this;
-        }
-
-        /**
-         * @brief Customizes alignment settings for help text
-         * @param alignment The alignment configuration
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &set_help_alignment(const HelpFormatter::Alignment &alignment)
-        {
-            m_HelpFormatter.alignment(alignment);
-            return *this;
-        }
-
-        /**
-         * @brief Configures help formatter with all settings
-         * @param format Output format
-         * @param use_colors Enable/disable color output
-         * @param width Terminal width for wrapping
-         * @return Reference to this parser for chaining
-         */
-        ArgumentParser &configure_help(HelpFormatter::OutputFormat format, bool use_colors = true, size_t width = 80)
-        {
-            m_HelpFormatter.output_format(format).use_color(use_colors).width(width);
             return *this;
         }
 

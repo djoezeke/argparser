@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16...4.1.1 FATAL_ERROR)
 
 set (ARGPARSER_VERSION_STRING "0.1.0")
 
-project(argparser
+project(Argparser
         VERSION ${ARGPARSER_VERSION_STRING} 
         DESCRIPTION "Argument parser for C/C++"
         HOMEPAGE_URL "https://github.com/djoezeke/argparser"
@@ -21,9 +21,9 @@ include(GNUInstallDirs)
 
 # Check if Argparser is the main project
 if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-  set(ARGPARSER_IS_TOP_LEVEL ON)
+  set(ARGPARSER_IS_MAIN ON)
 else()
-  set(ARGPARSER_IS_TOP_LEVEL OFF)
+  set(ARGPARSER_IS_MAIN OFF)
 endif()
 
 # Set required C/C++ standard
@@ -42,13 +42,10 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 # Configure variables for the library   
 #--------------------------------------------------------------------
 
-option(ARGPARSER_BUILD_EXAMPLES "Build the ${PROJECT_NAME} example applications" ${ARGPARSER_IS_TOP_LEVEL})
-option(ARGPARSER_BUILD_TESTS "Build the ${PROJECT_NAME} test programs" ${ARGPARSER_IS_TOP_LEVEL})
-
-option(ARGPARSER_ENABLE_INSTALL "Enable installation." ${ARGPARSER_IS_TOP_LEVEL})
-option(ARGPARSER_ENABLE_DOXYGEN "Build documentation with Doxygen." ${ARGPARSER_IS_TOP_LEVEL})
-option(ARGPARSER_ENABLE_WARNING "Enable warning messages." ${ARGPARSER_IS_TOP_LEVEL})
-option(ARGPARSER_ENABLE_PACKING "Enable packing with CPack." ${ARGPARSER_IS_TOP_LEVEL})
+option(ARGPARSER_BUILD_TESTS "Build the tests" ${ARGPARSER_IS_MAIN})
+option(ARGPARSER_BUILD_EXAMPLES "Build the examples" ${ARGPARSER_IS_MAIN})
+option(ARGPARSER_ENABLE_INSTALL "Enable installation." ${ARGPARSER_IS_MAIN})
+option(ARGPARSER_ENABLE_PACKING "Enable packing with CPack." ${ARGPARSER_IS_MAIN})
 
 #--------------------------------------------------------------------
 # Configurations
@@ -67,11 +64,7 @@ endif()
 
 # Output directories for a build tree
 if(NOT DEFINED CMAKE_RUNTIME_OUTPUT_DIRECTORY)
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-endif()
-
-if(ARGPARSER_ENABLE_WARNING)
-
+  	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 
 #--------------------------------------------------------------------
@@ -86,7 +79,7 @@ target_compile_features(Argparser INTERFACE cxx_std_17)
 target_include_directories(Argparser 
     INTERFACE 
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  		$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 #--------------------------------------------------------------------
@@ -96,11 +89,6 @@ target_include_directories(Argparser
 # Build the example apps   
 if(ARGPARSER_BUILD_EXAMPLES)
     add_subdirectory(examples)
-endif()
-
-# Build the documentation   
-if(ARGPARSER_ENABLE_DOXYGEN)
-    add_subdirectory(docs)
 endif()
 
 # Build the test apps   
@@ -113,7 +101,7 @@ if(ARGPARSER_BUILD_TESTS)
     # if the target compiler is some version of Microsoft Visual C++ and
     # if this project is the main project.
     if(MSVC AND CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-      set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT argparser-tests)
+	    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ArgparserTests)
     endif()
 endif()
 
@@ -138,8 +126,8 @@ write_basic_package_version_file(
 )
 
 configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/pkg-config.pc.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/argparser.pc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Argparser.pc.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/Argparser.pc"
   @ONLY
 )
 
@@ -149,12 +137,13 @@ configure_file(
 #--------------------------------------------------------------------
 
 if(ARGPARSER_ENABLE_INSTALL)
+
 	install(TARGETS Argparser EXPORT ArgparserTargets)
 
-  install(FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/argparser.hpp
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-  )
+	install(FILES
+		${CMAKE_CURRENT_SOURCE_DIR}/argparser.hpp
+		DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+	)
 
 	install(EXPORT ArgparserTargets
 		FILE ArgparserTargets.cmake
@@ -169,10 +158,10 @@ if(ARGPARSER_ENABLE_INSTALL)
 	)
 
     if(UNIX)
-      install(FILES
-        "${CMAKE_CURRENT_BINARY_DIR}/argparser.pc"
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
-      )
+		install(FILES
+			"${CMAKE_CURRENT_BINARY_DIR}/Argparser.pc"
+			DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+		)
     endif()
 
 endif()
@@ -185,45 +174,48 @@ endif()
 if(ARGPARSER_ENABLE_PACKING)
 
     if(WIN32 AND NOT CYGWIN)
-    find_program(ARGPARSER_MAKENSIS_EXECUTABLE makensis)
-    if(ARGPARSER_MAKENSIS_EXECUTABLE)
-      set(CPACK_GENERATOR NSIS ZIP)
-    else()
-      message(STATUS "NSIS not found: falling back to ZIP package generator")
-      set(CPACK_GENERATOR ZIP)
+    	find_program(ARGPARSER_MAKENSIS_EXECUTABLE makensis)
+
+    	if(ARGPARSER_MAKENSIS_EXECUTABLE)
+      		set(CPACK_GENERATOR NSIS ZIP)
+    	else()
+      		message(STATUS "NSIS not found: falling back to ZIP package generator")
+    		set(CPACK_GENERATOR ZIP)
+	    endif()
     endif()
-    endif()
-    if(APPLE)
+
+	if(APPLE)
         set(CPACK_GENERATOR DragNDrop TGZ)
     endif()
-    if (UNIX AND NOT APPLE AND NOT WIN32)
+
+	if (UNIX AND NOT APPLE AND NOT WIN32)
         set(CPACK_GENERATOR DEB TGZ)
     endif ()
 
-  set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
-  set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-  set(CPACK_PACKAGE_VENDOR "${PROJECT_NAME} developers")
-  set(CPACK_PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}")
-  set(CPACK_PACKAGE_HOMEPAGE_URL "${PROJECT_HOMEPAGE_URL}")
-  set(CPACK_PACKAGE_MAINTAINER "Sackey Ezekiel Etrue")
-  set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
-  set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+	set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
+	set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+	set(CPACK_PACKAGE_VENDOR "${PROJECT_NAME} developers")
+	set(CPACK_PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}")
+	set(CPACK_PACKAGE_HOMEPAGE_URL "${PROJECT_HOMEPAGE_URL}")
+	set(CPACK_PACKAGE_MAINTAINER "Sackey Ezekiel Etrue")
+	set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+	set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
 
-  set(CPACK_DEBIAN_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
-  set(CPACK_DEBIAN_COMPRESSION_TYPE "xz")
-  set(CPACK_DEBIAN_PACKAGE_DEBUG OFF)
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6-dev")
-  set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_MAINTAINER}")
-  set(CPACK_DEBIAN_PACKAGE_SUGGESTS "cmake, pkg-config, pkg-conf")
+	set(CPACK_DEBIAN_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
+	set(CPACK_DEBIAN_COMPRESSION_TYPE "xz")
+	set(CPACK_DEBIAN_PACKAGE_DEBUG OFF)
+	set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6-dev")
+	set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_MAINTAINER}")
+	set(CPACK_DEBIAN_PACKAGE_SUGGESTS "cmake, pkg-config, pkg-conf")
 
-  set(CPACK_RPM_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
-  set(CPACK_RPM_PACKAGE_SUGGESTS "${CPACK_DEBIAN_PACKAGE_SUGGESTS}")
+	set(CPACK_RPM_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
+	set(CPACK_RPM_PACKAGE_SUGGESTS "${CPACK_DEBIAN_PACKAGE_SUGGESTS}")
 
-  set(CPACK_DEB_COMPONENT_INSTALL ON)
-  set(CPACK_RPM_COMPONENT_INSTALL ON)
-  set(CPACK_NSIS_COMPONENT_INSTALL ON)
+	set(CPACK_DEB_COMPONENT_INSTALL ON)
+	set(CPACK_RPM_COMPONENT_INSTALL ON)
+	set(CPACK_NSIS_COMPONENT_INSTALL ON)
 
-    include(CPack)
+	include(CPack)
 
 endif()
 
@@ -238,8 +230,10 @@ if(NOT TARGET uninstall)
     "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
     IMMEDIATE @ONLY)
 
-  add_custom_target(uninstall
-    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
-    )
+	add_custom_target(uninstall
+		COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake
+	)
 
 endif()
+
+# ===================================================================
