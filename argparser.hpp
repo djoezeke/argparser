@@ -170,6 +170,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <initializer_list>
+#include <memory>
 #include <cstdio>
 
 //-----------------------------------------------------------------------------
@@ -521,14 +522,31 @@ namespace argparser
         Format m_Format;
     };
 
+    /**
+     * @class Namespace
+     * @brief Parsed argument values container returned by ArgumentParser.
+     *
+     * Supports typed extraction, presence checks, raw access and (when used)
+     * nested subcommand result access.
+     */
     class Namespace
     {
         friend class ArgumentParser;
 
     public:
+        Namespace() = default;
+        Namespace(const Namespace &other);
+        Namespace &operator=(const Namespace &other);
+        Namespace(Namespace &&) noexcept = default;
+        Namespace &operator=(Namespace &&) noexcept = default;
+        ~Namespace() = default;
+
         bool has(const std::string &name) const;
         bool provided(const std::string &name) const;
         const std::vector<std::string> &raw_values(const std::string &name) const;
+        bool has_subcommand() const;
+        const std::string &subcommand() const;
+        const Namespace &subcommand_namespace() const;
         template <typename T>
         T get(const std::string &name) const;
         template <typename T>
@@ -541,8 +559,17 @@ namespace argparser
     private:
         std::unordered_map<std::string, std::vector<std::string>> m_Data;
         std::unordered_map<std::string, bool> m_Provided;
+        std::string m_Subcommand;
+        std::unique_ptr<Namespace> m_SubcommandNamespace;
     };
 
+    /**
+     * @class ArgumentParser
+     * @brief Python-style command line parser for C++17.
+     *
+     * Features include optional/positional arguments, actions, default values,
+     * choices validation, environment fallback, and subcommands.
+     */
     class ArgumentParser
     {
     public:
@@ -568,6 +595,11 @@ namespace argparser
 
         public:
             Argument &help(const std::string &text);
+            /**
+             * @brief Mark argument as hidden from help output.
+             * @param value True to hide, false to show.
+             */
+            Argument &hidden(bool value = true);
             Argument &required(bool value = true);
             Argument &metavar(const std::string &text);
             Argument &action(const std::string &name);
@@ -578,6 +610,11 @@ namespace argparser
             Argument &default_values(std::initializer_list<std::string> values);
             template <typename T>
             Argument &implicit_value(T value);
+            /**
+             * @brief Read value from an environment variable when not provided on CLI.
+             * @param name Environment variable name.
+             */
+            Argument &env(const std::string &name);
             Argument &choices(std::initializer_list<std::string> values);
             const std::string &dest() const;
 
@@ -604,7 +641,9 @@ namespace argparser
 
             std::vector<std::string> m_DefaultValues;
             std::optional<std::string> m_ImplicitValue;
+            std::optional<std::string> m_EnvVar;
             std::vector<std::string> m_Choices;
+            bool m_Hidden{false};
 
             std::vector<std::string> m_Values;
             std::size_t m_Occurrences{0};
@@ -621,6 +660,7 @@ namespace argparser
         HelpFormatter &formatter();
         ArgumentParser &formatter(HelpFormatter formatter);
         std::string &description();
+        const std::string &description() const;
         ArgumentParser &description(std::string description);
 
         /**
@@ -644,7 +684,28 @@ namespace argparser
         template <typename... Names>
         Argument &add_argument(const Names &...names);
 
+        /**
+         * @brief Add or retrieve a subcommand parser by name.
+         * @param name Subcommand token (e.g. "init", "build").
+         * @param description Description shown in the parent help.
+         * @return Reference to the subcommand parser.
+         */
+        ArgumentParser &add_subcommand(const std::string &name, const std::string &description = "");
+
+        /**
+         * @brief Parse arguments and throw on unknown options.
+         */
         const Namespace &parse_args(int argc, char **argv);
+
+        /**
+         * @brief Parse arguments and preserve unknown options/tokens.
+         */
+        const Namespace &parse_known_args(int argc, char **argv);
+
+        /**
+         * @brief Unknown options/tokens captured by parse_known_args().
+         */
+        const std::vector<std::string> &unknown_args() const;
 
         /**
          * @brief Prints the help message
@@ -659,19 +720,22 @@ namespace argparser
         void print_usage(std::ostream &stream = std::cout) const;
 
     private:
-        static bool is_optional_token(const std::string &token);
+        static bool is_negative_number_token(const std::string &token);
+        bool should_treat_as_optional(const std::string &token) const;
         static std::string to_upper(std::string text);
         static std::string argument_display(const Argument &arg);
         Argument &lookup_option(const std::string &name);
+        Argument *try_lookup_option(const std::string &name);
         void apply_action(Argument &arg, const std::vector<std::string> &values);
         std::vector<std::string> collect_option_values(Argument &arg,
                                                        int &index,
                                                        int argc,
                                                        char **argv,
                                                        std::optional<std::string> first);
+        void parse_impl(int argc, char **argv, bool allow_unknown);
 
-        void consume_long_option(const std::string &token, int &index, int argc, char **argv);
-        void consume_short_cluster(const std::string &token, int &index, int argc, char **argv);
+        void consume_long_option(const std::string &token, int &index, int argc, char **argv, bool allow_unknown);
+        void consume_short_cluster(const std::string &token, int &index, int argc, char **argv, bool allow_unknown);
         void assign_positionals(const std::vector<std::string> &tokens);
         void finalize_and_validate();
         void build_namespace();
@@ -687,6 +751,8 @@ namespace argparser
         std::vector<Argument> m_Arguments;
         std::vector<std::size_t> m_Positionals;
         std::unordered_map<std::string, std::size_t> m_OptionLookup;
+        std::unordered_map<std::string, std::unique_ptr<ArgumentParser>> m_Subcommands;
+        std::vector<std::string> m_UnknownArgs;
 
         Namespace m_Namespace;
         HelpFormatter m_HelpFormatter;
@@ -1092,6 +1158,40 @@ namespace argparser
     // - Namespace()
     //-----------------------------------------------------------------------------
 
+    Namespace::Namespace(const Namespace &other)
+        : m_Data(other.m_Data),
+          m_Provided(other.m_Provided),
+          m_Subcommand(other.m_Subcommand)
+    {
+        if (other.m_SubcommandNamespace)
+        {
+            m_SubcommandNamespace = std::make_unique<Namespace>(*other.m_SubcommandNamespace);
+        }
+    }
+
+    Namespace &Namespace::operator=(const Namespace &other)
+    {
+        if (this == &other)
+        {
+            return *this;
+        }
+
+        m_Data = other.m_Data;
+        m_Provided = other.m_Provided;
+        m_Subcommand = other.m_Subcommand;
+
+        if (other.m_SubcommandNamespace)
+        {
+            m_SubcommandNamespace = std::make_unique<Namespace>(*other.m_SubcommandNamespace);
+        }
+        else
+        {
+            m_SubcommandNamespace.reset();
+        }
+
+        return *this;
+    }
+
     bool Namespace::has(const std::string &name) const
     {
         return m_Data.find(name) != m_Data.end();
@@ -1114,6 +1214,27 @@ namespace argparser
 #endif // ARGPARSER_NO_EXCEPTIONS
         }
         return it->second;
+    }
+
+    bool Namespace::has_subcommand() const
+    {
+        return !m_Subcommand.empty();
+    }
+
+    const std::string &Namespace::subcommand() const
+    {
+        return m_Subcommand;
+    }
+
+    const Namespace &Namespace::subcommand_namespace() const
+    {
+        if (!m_SubcommandNamespace)
+        {
+#ifndef ARGPARSER_NO_EXCEPTIONS
+            throw ParseError("subcommand namespace not available");
+#endif // ARGPARSER_NO_EXCEPTIONS
+        }
+        return *m_SubcommandNamespace;
     }
 
     template <typename T>
@@ -1210,6 +1331,12 @@ namespace argparser
         m_Help = text;
         return *this;
     };
+
+    ArgumentParser::Argument &ArgumentParser::Argument::hidden(bool value)
+    {
+        m_Hidden = value;
+        return *this;
+    }
 
     ArgumentParser::Argument &ArgumentParser::Argument::required(bool value)
     {
@@ -1320,6 +1447,12 @@ namespace argparser
     ArgumentParser::Argument &ArgumentParser::Argument::implicit_value(T value)
     {
         m_ImplicitValue = to_string(value);
+        return *this;
+    }
+
+    ArgumentParser::Argument &ArgumentParser::Argument::env(const std::string &name)
+    {
+        m_EnvVar = name;
         return *this;
     }
 
@@ -1454,6 +1587,11 @@ namespace argparser
         return m_Description;
     };
 
+    const std::string &ArgumentParser::description() const
+    {
+        return m_Description;
+    }
+
     ArgumentParser &ArgumentParser::description(std::string description)
     {
         m_Description = description;
@@ -1476,7 +1614,7 @@ namespace argparser
         auto &opt_section = const_cast<HelpFormatter &>(fmt).add_section("optional arguments");
         for (const auto &arg : m_Arguments)
         {
-            if (arg.m_Kind == Argument::Kind::Optional)
+            if (arg.m_Kind == Argument::Kind::Optional && !arg.m_Hidden)
             {
                 std::string opt_str;
                 for (size_t i = 0; i < arg.m_OptionNames.size(); ++i)
@@ -1503,7 +1641,7 @@ namespace argparser
         bool has_positional = false;
         for (const auto &arg : m_Arguments)
         {
-            if (arg.m_Kind == Argument::Kind::Positional)
+            if (arg.m_Kind == Argument::Kind::Positional && !arg.m_Hidden)
             {
                 has_positional = true;
                 break;
@@ -1515,10 +1653,21 @@ namespace argparser
             auto &pos_section = const_cast<HelpFormatter &>(fmt).add_section("positional arguments");
             for (const auto &arg : m_Arguments)
             {
-                if (arg.m_Kind == Argument::Kind::Positional)
+                if (arg.m_Kind == Argument::Kind::Positional && !arg.m_Hidden)
                 {
                     pos_section.add_item(arg.m_Dest, "", arg.m_Help, arg.m_Required);
                 }
+            }
+        }
+
+        if (!m_Subcommands.empty())
+        {
+            auto &sub_section = const_cast<HelpFormatter &>(fmt).add_section("subcommands");
+            for (const auto &entry : m_Subcommands)
+            {
+                const auto &name = entry.first;
+                const auto &parser = *entry.second;
+                sub_section.add_item(name, "", parser.description(), false);
             }
         }
 
@@ -1634,12 +1783,56 @@ namespace argparser
         return m_Arguments[idx];
     }
 
+    ArgumentParser &ArgumentParser::add_subcommand(const std::string &name, const std::string &description)
+    {
+        if (name.empty() || name[0] == '-')
+        {
+#ifndef ARGPARSER_NO_EXCEPTIONS
+            throw ArgumentError("subcommand must be a non-empty token not starting with '-': " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
+        }
+
+        auto it = m_Subcommands.find(name);
+        if (it == m_Subcommands.end())
+        {
+            auto parser = std::make_unique<ArgumentParser>(name, description, "");
+            it = m_Subcommands.emplace(name, std::move(parser)).first;
+        }
+        else
+        {
+            it->second->description(description);
+        }
+
+        return *it->second;
+    }
+
     const Namespace &ArgumentParser::parse_args(int argc, char **argv)
+    {
+        parse_impl(argc, argv, false);
+        return m_Namespace;
+    }
+
+    const Namespace &ArgumentParser::parse_known_args(int argc, char **argv)
+    {
+        parse_impl(argc, argv, true);
+        return m_Namespace;
+    }
+
+    const std::vector<std::string> &ArgumentParser::unknown_args() const
+    {
+        return m_UnknownArgs;
+    }
+
+    void ArgumentParser::parse_impl(int argc, char **argv, bool allow_unknown)
     {
         if (m_Program.empty() && argc > 0 && argv != nullptr)
         {
             m_Program = argv[0];
         }
+
+        m_UnknownArgs.clear();
+        m_Namespace.m_Subcommand.clear();
+        m_Namespace.m_SubcommandNamespace.reset();
 
         for (auto &arg : m_Arguments)
         {
@@ -1649,14 +1842,40 @@ namespace argparser
 
         std::vector<std::string> positional_tokens;
 
+        int subcommand_index = -1;
+        std::string subcommand_name;
+        if (!m_Subcommands.empty())
+        {
+            for (int s = 1; s < argc; ++s)
+            {
+                const std::string token = argv[s];
+                if (token == "--")
+                {
+                    break;
+                }
+                if (!should_treat_as_optional(token))
+                {
+                    const auto it = m_Subcommands.find(token);
+                    if (it != m_Subcommands.end())
+                    {
+                        subcommand_index = s;
+                        subcommand_name = token;
+                        break;
+                    }
+                }
+            }
+        }
+
+        const int scan_end = (subcommand_index >= 0) ? subcommand_index : argc;
+
         int i = 1;
-        while (i < argc)
+        while (i < scan_end)
         {
             const std::string token = argv[i];
             if (token == "--")
             {
                 ++i;
-                while (i < argc)
+                while (i < scan_end)
                 {
                     positional_tokens.emplace_back(argv[i]);
                     ++i;
@@ -1664,15 +1883,15 @@ namespace argparser
                 break;
             }
 
-            if (is_optional_token(token))
+            if (should_treat_as_optional(token))
             {
                 if (token.rfind("--", 0) == 0)
                 {
-                    consume_long_option(token, i, argc, argv);
+                    consume_long_option(token, i, scan_end, argv, allow_unknown);
                 }
                 else
                 {
-                    consume_short_cluster(token, i, argc, argv);
+                    consume_short_cluster(token, i, scan_end, argv, allow_unknown);
                 }
             }
             else
@@ -1686,7 +1905,43 @@ namespace argparser
         finalize_and_validate();
         build_namespace();
 
-        return m_Namespace;
+        if (subcommand_index >= 0)
+        {
+            auto sub_it = m_Subcommands.find(subcommand_name);
+            if (sub_it != m_Subcommands.end())
+            {
+                auto &subparser = *sub_it->second;
+                std::vector<std::string> sub_tokens;
+                sub_tokens.reserve(static_cast<std::size_t>(argc - subcommand_index));
+                sub_tokens.push_back(m_Program.empty() ? subcommand_name : (m_Program + " " + subcommand_name));
+                for (int j = subcommand_index + 1; j < argc; ++j)
+                {
+                    sub_tokens.emplace_back(argv[j]);
+                }
+
+                std::vector<char *> sub_argv;
+                sub_argv.reserve(sub_tokens.size());
+                for (auto &token : sub_tokens)
+                {
+                    sub_argv.push_back(const_cast<char *>(token.c_str()));
+                }
+
+                const Namespace &sub_ns = allow_unknown
+                                              ? subparser.parse_known_args(static_cast<int>(sub_argv.size()), sub_argv.data())
+                                              : subparser.parse_args(static_cast<int>(sub_argv.size()), sub_argv.data());
+
+                m_Namespace.m_Subcommand = subcommand_name;
+                m_Namespace.m_SubcommandNamespace = std::make_unique<Namespace>(sub_ns);
+
+                if (allow_unknown)
+                {
+                    for (const auto &unknown : subparser.unknown_args())
+                    {
+                        m_UnknownArgs.push_back(unknown);
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -1707,9 +1962,76 @@ namespace argparser
         stream << format_usage();
     }
 
-    bool ArgumentParser::is_optional_token(const std::string &token)
+    bool ArgumentParser::is_negative_number_token(const std::string &token)
     {
-        return token.size() > 1 && token[0] == '-';
+        if (token.size() < 2 || token[0] != '-')
+        {
+            return false;
+        }
+
+        std::size_t idx = 1;
+        bool has_digit = false;
+
+        while (idx < token.size() && std::isdigit(static_cast<unsigned char>(token[idx])))
+        {
+            has_digit = true;
+            ++idx;
+        }
+
+        if (idx < token.size() && token[idx] == '.')
+        {
+            ++idx;
+            while (idx < token.size() && std::isdigit(static_cast<unsigned char>(token[idx])))
+            {
+                has_digit = true;
+                ++idx;
+            }
+        }
+
+        if (!has_digit)
+        {
+            return false;
+        }
+
+        if (idx < token.size() && (token[idx] == 'e' || token[idx] == 'E'))
+        {
+            ++idx;
+            if (idx < token.size() && (token[idx] == '+' || token[idx] == '-'))
+            {
+                ++idx;
+            }
+
+            bool has_exp_digit = false;
+            while (idx < token.size() && std::isdigit(static_cast<unsigned char>(token[idx])))
+            {
+                has_exp_digit = true;
+                ++idx;
+            }
+
+            if (!has_exp_digit)
+            {
+                return false;
+            }
+        }
+
+        return idx == token.size();
+    }
+
+    bool ArgumentParser::should_treat_as_optional(const std::string &token) const
+    {
+        if (token.size() < 2 || token[0] != '-')
+        {
+            return false;
+        }
+        if (token == "-")
+        {
+            return false;
+        }
+        if (is_negative_number_token(token))
+        {
+            return false;
+        }
+        return true;
     }
 
     std::string ArgumentParser::to_upper(std::string text)
@@ -1747,14 +2069,24 @@ namespace argparser
 
     ArgumentParser::Argument &ArgumentParser::lookup_option(const std::string &name)
     {
-        const auto it = m_OptionLookup.find(name);
-        if (it == m_OptionLookup.end())
+        auto *arg = try_lookup_option(name);
+        if (arg == nullptr)
         {
 #ifndef ARGPARSER_NO_EXCEPTIONS
             throw ParseError("unrecognized argument: " + name);
 #endif // ARGPARSER_NO_EXCEPTIONS
         }
-        return m_Arguments[it->second];
+        return *arg;
+    }
+
+    ArgumentParser::Argument *ArgumentParser::try_lookup_option(const std::string &name)
+    {
+        const auto it = m_OptionLookup.find(name);
+        if (it == m_OptionLookup.end())
+        {
+            return nullptr;
+        }
+        return &m_Arguments[it->second];
     }
 
     void ArgumentParser::apply_action(Argument &arg, const std::vector<std::string> &values)
@@ -1821,7 +2153,7 @@ namespace argparser
         while (arg.is_unbounded() && index + 1 < argc)
         {
             const std::string next = argv[index + 1];
-            if (is_optional_token(next))
+            if (should_treat_as_optional(next))
             {
                 break;
             }
@@ -1836,7 +2168,7 @@ namespace argparser
                 break;
             }
             const std::string next = argv[index + 1];
-            if (is_optional_token(next))
+            if (should_treat_as_optional(next))
             {
                 break;
             }
@@ -1864,7 +2196,7 @@ namespace argparser
         return values;
     }
 
-    void ArgumentParser::consume_long_option(const std::string &token, int &index, int argc, char **argv)
+    void ArgumentParser::consume_long_option(const std::string &token, int &index, int argc, char **argv, bool allow_unknown)
     {
         const auto eq = token.find('=');
         const std::string name = (eq == std::string::npos) ? token : token.substr(0, eq);
@@ -1872,29 +2204,51 @@ namespace argparser
                                                             ? std::nullopt
                                                             : std::optional<std::string>(token.substr(eq + 1));
 
-        auto &arg = lookup_option(name);
-        const auto values = collect_option_values(arg, index, argc, argv, inline_value);
-        apply_action(arg, values);
+        auto *arg = try_lookup_option(name);
+        if (arg == nullptr)
+        {
+            if (allow_unknown)
+            {
+                m_UnknownArgs.push_back(token);
+                return;
+            }
+#ifndef ARGPARSER_NO_EXCEPTIONS
+            throw ParseError("unrecognized argument: " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
+        }
+        const auto values = collect_option_values(*arg, index, argc, argv, inline_value);
+        apply_action(*arg, values);
     }
 
-    void ArgumentParser::consume_short_cluster(const std::string &token, int &index, int argc, char **argv)
+    void ArgumentParser::consume_short_cluster(const std::string &token, int &index, int argc, char **argv, bool allow_unknown)
     {
         for (std::size_t pos = 1; pos < token.size(); ++pos)
         {
             const std::string name = std::string("-") + token[pos];
-            auto &arg = lookup_option(name);
+            auto *arg = try_lookup_option(name);
+            if (arg == nullptr)
+            {
+                if (allow_unknown)
+                {
+                    m_UnknownArgs.push_back(token.substr(pos - 1));
+                    return;
+                }
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                throw ParseError("unrecognized argument: " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
+            }
 
             std::optional<std::string> inline_value;
-            if (arg.takes_value() && pos + 1 < token.size())
+            if (arg->takes_value() && pos + 1 < token.size())
             {
                 inline_value = token.substr(pos + 1);
                 pos = token.size();
             }
 
-            const auto values = collect_option_values(arg, index, argc, argv, inline_value);
-            apply_action(arg, values);
+            const auto values = collect_option_values(*arg, index, argc, argv, inline_value);
+            apply_action(*arg, values);
 
-            if (arg.takes_value())
+            if (arg->takes_value())
             {
                 break;
             }
@@ -1960,6 +2314,14 @@ namespace argparser
                 if (!arg.m_DefaultValues.empty())
                 {
                     arg.m_Values = arg.m_DefaultValues;
+                }
+                else if (arg.m_EnvVar.has_value())
+                {
+                    const char *env_value = std::getenv(arg.m_EnvVar->c_str());
+                    if (env_value != nullptr)
+                    {
+                        arg.m_Values = {std::string(env_value)};
+                    }
                 }
                 else if (arg.m_Action == Argument::ActionType::StoreTrue)
                 {

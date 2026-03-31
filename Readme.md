@@ -40,6 +40,10 @@ It offers a modern and intuitive API for declaring arguments with `add_argument(
 - Positional + optional arguments
 - Actions: `store_true`, `store_false`, `append`, `count`
 - Default values, required args, and formatted help messages
+- Subcommands via `add_subcommand(...)`
+- Unknown argument capture via `parse_known_args(...)`
+- Environment fallback values via `.env("NAME")`
+- Better negative-number handling (`-42`, `-3.14`) as values
 
 Argparser distinguishes 3 different types of arguments:
 
@@ -204,6 +208,39 @@ Useful formatter controls:
 - `use_help_colors(...)`, `set_color_theme(...)`, and `set_help_alignment(...)`
 - `configure_help(format, use_colors, width)` for one-call setup
 - `get_formatter()` for direct advanced customization
+
+### Subcommands + Known Args
+
+```cpp
+#include "argparser.hpp"
+
+int main(int argc, char** argv) {
+   argparser::ArgumentParser parser("tool");
+   parser.add_argument("-v", "--verbose").action("store_true");
+
+   auto& run = parser.add_subcommand("run", "run tasks");
+   run.add_argument("path");
+   run.add_argument("--mode").choices({"fast", "safe"}).default_value("fast");
+
+   const auto& ns = parser.parse_known_args(argc, argv);
+   for (const auto& unknown : parser.unknown_args()) {
+      (void)unknown;
+   }
+
+   if (ns.has_subcommand() && ns.subcommand() == "run") {
+      auto path = ns.subcommand_namespace().get<std::string>("path");
+      auto mode = ns.subcommand_namespace().get<std::string>("mode");
+      (void)path; (void)mode;
+   }
+}
+```
+
+### Environment Fallback
+
+```cpp
+argparser::ArgumentParser parser("app");
+parser.add_argument("--port").env("APP_PORT").default_value(8080);
+```
 
 ### Example Help
 
