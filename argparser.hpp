@@ -205,37 +205,78 @@ namespace argparser
 
 #ifndef ARGPARSER_NO_EXCEPTIONS
 
+    /**
+     * @class ArgumentError
+     * @brief Base exception for argument parsing failures.
+     * @details Thrown when the parser detects invalid input, invalid values,
+     * missing arguments, or unsupported usage patterns.
+     */
     class ArgumentError : public std::runtime_error
     {
     public:
+        /**
+         * @brief Constructs an argument error with a message.
+         * @param message Human-readable error description.
+         */
         explicit ArgumentError(const std::string &message)
             : std::runtime_error(message) {};
     };
 
+    /**
+     * @class ParseError
+     * @brief Exception thrown when parsing fails.
+     */
     class ParseError : public ArgumentError
     {
     public:
+        /**
+         * @brief Constructs a parse error with a message.
+         * @param message Human-readable error description.
+         */
         ParseError(const std::string &message)
             : ArgumentError(message) {};
     };
 
+    /**
+     * @class UsageError
+     * @brief Exception thrown when the parser is used incorrectly.
+     */
     class UsageError : public ArgumentError
     {
     public:
+        /**
+         * @brief Constructs a usage error with a message.
+         * @param message Human-readable error description.
+         */
         UsageError(const std::string &message)
             : ArgumentError(message) {};
     };
 
+    /**
+     * @class RequiredError
+     * @brief Exception thrown when a required argument or value is missing.
+     */
     class RequiredError : public ArgumentError
     {
     public:
+        /**
+         * @brief Constructs a required-argument error with a message.
+         * @param message Human-readable error description.
+         */
         RequiredError(const std::string &message)
             : ArgumentError(message) {};
     };
 
+    /**
+     * @class HelpError
+     * @brief Exception thrown when help output is requested.
+     */
     class HelpError : public ArgumentError
     {
     public:
+        /**
+         * @brief Constructs the help-request signal exception.
+         */
         HelpError()
             : ArgumentError("help requested") {};
     };
@@ -260,7 +301,8 @@ namespace argparser
     {
     public:
         /**
-         * @enum Color - ANSI color codes for terminal output
+         * @enum Color
+         * @brief ANSI color and text-style codes used in colored output.
          */
         enum class Color
         {
@@ -293,7 +335,8 @@ namespace argparser
         };
 
         /**
-         * @enum Format - Different help output formats
+         * @enum Format
+         * @brief Supported help output formats.
          */
         enum class Format
         {
@@ -304,42 +347,49 @@ namespace argparser
         };
 
         /**
-         * @struct ColorTheme - Color scheme for help messages
+         * @struct ColorTheme
+         * @brief Color scheme for help messages.
          */
         struct ColorTheme
         {
-            bool enabled = true;
-            Color usage_color = Color::Green;
-            Color option_color = Color::Blue;
-            Color warnings_color = Color::Red;
-            Color required_color = Color::Red;
-            Color heading_color = Color::Bold;
-            Color section_color = Color::Cyan;
-            Color notes_color = Color::Magenta;
-            Color examples_color = Color::Green;
-            Color metavar_color = Color::Yellow;
-            Color description_color = Color::Default;
+            bool enabled = true;                      ///< Enables ANSI color output.
+            Color usage_color = Color::Green;         ///< Color for usage headers.
+            Color option_color = Color::Blue;         ///< Color for option names.
+            Color warnings_color = Color::Red;        ///< Color for warning sections.
+            Color required_color = Color::Red;        ///< Color for required markers.
+            Color heading_color = Color::Bold;        ///< Color for section headings.
+            Color section_color = Color::Cyan;        ///< Color for section labels.
+            Color notes_color = Color::Magenta;       ///< Color for notes text.
+            Color examples_color = Color::Green;      ///< Color for examples.
+            Color metavar_color = Color::Yellow;      ///< Color for metavariables.
+            Color description_color = Color::Default; ///< Color for descriptions.
         };
 
         /**
-         * @struct Alignment - Layout configuration
+         * @struct Alignment
+         * @brief Layout and wrapping configuration for help text.
          */
         struct Alignment
         {
-            size_t indent_size = 2;
-            char indent_char = ' ';
-            size_t option_width = 20;
-            bool wrap_help_text = true;
-            size_t max_help_position = 24;
-            size_t min_description_width = 20;
+            size_t indent_size = 2;            ///< Number of characters per indent level.
+            char indent_char = ' ';            ///< Character used for indentation.
+            size_t option_width = 20;          ///< Desired width of the option column.
+            bool wrap_help_text = true;        ///< Enables wrapping of descriptions.
+            size_t max_help_position = 24;     ///< Maximum column for help text start.
+            size_t min_description_width = 20; ///< Minimum width reserved for descriptions.
         };
 
         /**
-         * @class Section - Logical grouping of help content
+         * @class Section
+         * @brief Logical grouping of help content in a generated help message.
          */
         class Section
         {
         public:
+            /**
+             * @enum Type
+             * @brief Section classification used by help formatters.
+             */
             enum class Type
             {
                 Notes,     ///< Additional notes
@@ -349,55 +399,135 @@ namespace argparser
                 Arguments, ///< Arguments section
             };
 
+            /**
+             * @brief Constructs a help section.
+             * @param title Section title.
+             * @param description Optional section description.
+             * @param type Section category.
+             */
             Section(const std::string &title = "", const std::string &description = "",
                     Type type = Type::Custom);
 
+            /**
+             * @brief Adds a formatted item to the section.
+             * @param option Option text to display.
+             * @param metavar Value placeholder text.
+             * @param help Human-readable help text.
+             * @param required Whether the item should be marked required.
+             * @return Reference to this section.
+             */
             Section &add_item(const std::string &option, const std::string &metavar,
                               const std::string &help, bool required = false);
 
+            /**
+             * @brief Adds a free-form text block to the section.
+             * @param text Text to append.
+             * @return Reference to this section.
+             */
             Section &add_text(const std::string &text);
+            /**
+             * @brief Adds a usage example to the section.
+             * @param command Example command line.
+             * @param description Optional example description.
+             * @return Reference to this section.
+             */
             Section &add_example(const std::string &command, const std::string &description);
+            /**
+             * @brief Indicates whether the section is visible.
+             * @return True if visible, false otherwise.
+             */
             bool visible();
+            /**
+             * @brief Sets the section visibility.
+             * @param visible Whether the section should be visible.
+             * @return Reference to this section.
+             */
             Section &visible(bool visible);
+            /**
+             * @brief Returns the section title.
+             * @return The title string.
+             */
             const std::string &title() const;
+            /**
+             * @brief Returns the section description.
+             * @return The description string.
+             */
             const std::string &description() const;
+            /**
+             * @brief Returns the section type.
+             * @return The section category.
+             */
             Type type() const;
+            /**
+             * @brief Indicates whether the section is visible.
+             * @return True if visible, false otherwise.
+             */
             bool visible() const;
 
         private:
             friend class HelpFormatter;
 
+            /**
+             * @struct Item
+             * @brief A single option/help row in a section.
+             */
             struct Item
             {
-                std::string option;
-                std::string metavar;
-                std::string help;
-                bool required;
+                std::string option;  ///< Displayed option text.
+                std::string metavar; ///< Placeholder or value label.
+                std::string help;    ///< Human-readable description.
+                bool required;       ///< Marks the item as required.
             };
 
+            /**
+             * @struct Example
+             * @brief A usage example row in a section.
+             */
             struct Example
             {
-                std::string command;
-                std::string description;
+                std::string command;     ///< Example command line.
+                std::string description; ///< Optional explanation.
             };
 
-            std::string m_Title;
-            std::string m_Description;
-            Type m_Type;
-            bool m_Visible = true;
-            std::vector<Item> m_Items;
-            std::vector<std::string> m_Texts;
-            std::vector<Example> m_Examples;
+            std::string m_Title;              ///< Section title.
+            std::string m_Description;        ///< Section description.
+            Type m_Type;                      ///< Section category.
+            bool m_Visible = true;            ///< Visibility flag.
+            std::vector<Item> m_Items;        ///< Item rows.
+            std::vector<std::string> m_Texts; ///< Free-form text blocks.
+            std::vector<Example> m_Examples;  ///< Example rows.
         };
 
     public:
         /**
-         * @brief Constructs HelpFormatter with configuration
+         * @brief Constructs a help formatter.
+         * @param width Output width in characters. Use 0 for auto-detection.
+         * @param prog_name Program name used in generated usage text.
          */
         HelpFormatter(size_t width = 80, const std::string &prog_name = "");
+        /**
+         * @brief Sets the program name.
+         * @param name Program name.
+         * @return Reference to this formatter.
+         */
         HelpFormatter &program(const std::string &name);
+        /**
+         * @brief Sets the usage string.
+         * @param usage Usage text.
+         * @return Reference to this formatter.
+         */
         HelpFormatter &usage(const std::string &usage);
+        /**
+         * @brief Sets the epilog text.
+         * @param epilog Footer text shown after help sections.
+         * @return Reference to this formatter.
+         */
         HelpFormatter &epilog(const std::string &epilog);
+        /**
+         * @brief Sets the description text.
+         * @param description Program description.
+         * @return Reference to this formatter.
+         */
         HelpFormatter &description(const std::string &description);
 
         /**
@@ -464,103 +594,99 @@ namespace argparser
          */
         HelpFormatter &line_separator(const char sep = '-', int width = 80);
 
+        /**
+         * @brief Enables or disables section sorting.
+         * @param sort True to sort sections.
+         * @return Reference to this formatter.
+         */
         HelpFormatter &sort_sections(bool sort);
 
         // === Section Management ===
 
+        /**
+         * @brief Adds a new section to the formatter.
+         * @param title Section title.
+         * @param description Section description.
+         * @param type Section category.
+         * @return Reference to the created section.
+         */
         Section &add_section(const std::string &title, const std::string &description = "",
                              Section::Type type = Section::Type::Custom);
 
+        /**
+         * @brief Returns an existing section or creates it if needed.
+         * @param title Section title.
+         * @param description Section description.
+         * @param type Section category.
+         * @return Reference to the matching section.
+         */
         Section &get_section(const std::string &title, const std::string &description = "",
                              Section::Type type = Section::Type::Custom);
 
         // === Getter Methods ===
 
+        /** @brief Returns the configured program name. */
         const std::string &program() const;
+        /** @brief Returns the configured output width. */
         size_t width() const;
+        /** @brief Returns mutable access to the current color theme. */
         ColorTheme &color_theme();
+        /** @brief Returns read-only access to the current color theme. */
         const ColorTheme &color_theme() const;
+        /** @brief Returns mutable access to the alignment configuration. */
         Alignment &alignment();
+        /** @brief Returns read-only access to the alignment configuration. */
         const Alignment &alignment() const;
+        /** @brief Returns the configured usage string. */
         const std::string &usage() const;
+        /** @brief Returns the configured epilog string. */
         const std::string &epilog() const;
+        /** @brief Returns the configured description string. */
         const std::string &description() const;
 
         // === Formatting Methods ===
 
-        // std::string format_help(const std::vector<ArgumentParser::Argument> *arguments = nullptr) const
+        /** @brief Builds the complete help message. */
         std::string format_help() const;
 
-        // std::string format_usage(const std::vector<ArgumentParser::Argument> *arguments = nullptr) const
+        /** @brief Builds the usage line. */
         std::string format_usage() const;
+        /** @brief Formats a single section. */
         std::string format_section(const Section &section) const;
+        /** @brief Wraps a block of text to the configured width. */
         std::string wrap_text(const std::string &text, size_t indent_level = 0) const;
+        /** @brief Applies ANSI color formatting to text when enabled. */
         std::string colorize(const std::string &text, Color color) const;
 
     private:
+        /** @brief Detects the terminal width when auto-sizing is requested. */
         static size_t get_terminal_width();
 
+        /** @brief Maps a theme color to the active output format. */
         Color get_color_for_format(Color default_color) const;
+        /** @brief Wraps and colors text as needed. */
         std::string format_colored(const std::string &text, Color color) const;
+        /** @brief Wraps a sequence of words into lines. */
         std::string wrap_words(const std::vector<std::string> &words, size_t indent_level) const;
+        /** @brief Formats a single argument row. */
         std::string format_item(const Section::Item &item) const;
+        /** @brief Formats a single example row. */
         std::string format_example(const Section::Example &example) const;
 
     private:
-        size_t m_Width;
-        std::string m_Program;
-        std::string m_Usage;
-        std::string m_Epilog;
-        std::string m_Description;
-        std::string m_PrefixInfo;
-        std::string m_SuffixInfo;
-        std::string m_LineSeparator;
-        bool m_SortSections = false;
-        std::vector<Section> m_Sections;
-        ColorTheme m_Theme;
-        Alignment m_Alignment;
-        Format m_Format;
-    };
-
-    /**
-     * @class Namespace
-     * @brief Parsed argument values container returned by ArgumentParser.
-     *
-     * Supports typed extraction, presence checks, raw access and (when used)
-     * nested subcommand result access.
-     */
-    class Namespace
-    {
-        friend class ArgumentParser;
-
-    public:
-        Namespace() = default;
-        Namespace(const Namespace &other);
-        Namespace &operator=(const Namespace &other);
-        Namespace(Namespace &&) noexcept = default;
-        Namespace &operator=(Namespace &&) noexcept = default;
-        ~Namespace() = default;
-
-        bool has(const std::string &name) const;
-        bool provided(const std::string &name) const;
-        const std::vector<std::string> &raw_values(const std::string &name) const;
-        bool has_subcommand() const;
-        const std::string &subcommand() const;
-        const Namespace &subcommand_namespace() const;
-        template <typename T>
-        T get(const std::string &name) const;
-        template <typename T>
-        std::vector<T> getlist(const std::string &name) const;
-
-    private:
-        template <typename T>
-        static T convert(const std::string &value);
-
-    private:
-        std::unordered_map<std::string, std::vector<std::string>> m_Data;
-        std::unordered_map<std::string, bool> m_Provided;
-        std::string m_Subcommand;
-        std::unique_ptr<Namespace> m_SubcommandNamespace;
+        size_t m_Width;                  ///< Output width in characters.
+        std::string m_Program;           ///< Program name used for usage text.
+        std::string m_Usage;             ///< Explicit usage string.
+        std::string m_Epilog;            ///< Footer text.
+        std::string m_Description;       ///< Main description text.
+        std::string m_PrefixInfo;        ///< Pre-usage text block.
+        std::string m_SuffixInfo;        ///< Post-help text block.
+        std::string m_LineSeparator;     ///< Separator line used between sections.
+        bool m_SortSections = false;     ///< Whether sections are sorted.
+        std::vector<Section> m_Sections; ///< Help sections.
+        ColorTheme m_Theme;              ///< Current color theme.
+        Alignment m_Alignment;           ///< Current layout settings.
+        Format m_Format;                 ///< Current output format.
     };
 
     /**
@@ -573,16 +699,77 @@ namespace argparser
     class ArgumentParser
     {
     public:
+        /**
+         * @class Namespace
+         * @brief Parsed argument values container returned by ArgumentParser.
+         * @details Provides typed lookup, raw access, presence tracking, and
+         * optional subcommand results.
+         */
+        class Namespace
+        {
+            friend class ArgumentParser;
+
+        public:
+            /** @brief Constructs an empty namespace. */
+            Namespace() = default;
+            /** @brief Copies a namespace. */
+            Namespace(const Namespace &other);
+            /** @brief Copy-assigns a namespace. */
+            Namespace &operator=(const Namespace &other);
+            /** @brief Moves a namespace. */
+            Namespace(Namespace &&) noexcept = default;
+            /** @brief Move-assigns a namespace. */
+            Namespace &operator=(Namespace &&) noexcept = default;
+            /** @brief Destroys the namespace. */
+            ~Namespace() = default;
+
+            /** @brief Returns whether an argument exists in the namespace. */
+            bool has(const std::string &name) const;
+            /** @brief Returns whether an argument was explicitly provided. */
+            bool provided(const std::string &name) const;
+            /** @brief Returns the raw parsed values for an argument. */
+            const std::vector<std::string> &raw_values(const std::string &name) const;
+            /** @brief Returns whether a subcommand was parsed. */
+            bool has_subcommand() const;
+            /** @brief Returns the parsed subcommand name. */
+            const std::string &subcommand() const;
+            /** @brief Returns the parsed namespace for the active subcommand. */
+            const Namespace &subcommand_namespace() const;
+            /** @brief Returns a typed value for an argument. */
+            template <typename T>
+            T get(const std::string &name) const;
+            /** @brief Returns a typed list of all values for an argument. */
+            template <typename T>
+            std::vector<T> getlist(const std::string &name) const;
+
+        private:
+            /** @brief Converts a raw string to the requested type. */
+            template <typename T>
+            static T convert(const std::string &value);
+
+        private:
+            std::unordered_map<std::string, std::vector<std::string>> m_Data; ///< Stored argument values.
+            std::unordered_map<std::string, bool> m_Provided;                 ///< Explicitly provided flags.
+            std::string m_Subcommand;                                         ///< Parsed subcommand name.
+            std::unique_ptr<Namespace> m_SubcommandNamespace;                 ///< Parsed subcommand namespace.
+        };
+
+        /**
+         * @class Argument
+         * @brief Describes a single positional or optional argument.
+         */
         class Argument
         {
             friend class ArgumentParser;
 
+            /** @brief Internal argument kind. */
             enum class Kind
             {
                 Positional,
                 Optional
             };
 
+            /** @brief Internal action type applied after parsing. */
             enum class ActionType
             {
                 Store,
@@ -594,73 +781,107 @@ namespace argparser
             };
 
         public:
+            /** @brief Sets help text for the argument. */
             Argument &help(const std::string &text);
             /**
              * @brief Mark argument as hidden from help output.
              * @param value True to hide, false to show.
              */
+            /** @brief Hides or reveals the argument in help output. */
             Argument &hidden(bool value = true);
+            /** @brief Marks the argument as required. */
             Argument &required(bool value = true);
+            /** @brief Sets the metavar text shown in help output. */
             Argument &metavar(const std::string &text);
+            /** @brief Sets the action performed when the argument is parsed. */
             Argument &action(const std::string &name);
+            /** @brief Sets the exact number of values accepted. */
             Argument &nargs(std::size_t count);
+            /** @brief Sets a Python-style nargs pattern such as ?, *, or +. */
             Argument &nargs(char pattern);
+            /** @brief Sets a default value that is used when no CLI value is provided. */
             template <typename T>
             Argument &default_value(T value);
+            /** @brief Sets multiple default values. */
             Argument &default_values(std::initializer_list<std::string> values);
+            /** @brief Sets an implicit value used when the argument is present without data. */
             template <typename T>
             Argument &implicit_value(T value);
             /**
              * @brief Read value from an environment variable when not provided on CLI.
              * @param name Environment variable name.
              */
+            /** @brief Reads a fallback value from an environment variable. */
             Argument &env(const std::string &name);
+            /** @brief Restricts the argument to a set of allowed string values. */
             Argument &choices(std::initializer_list<std::string> values);
+            /** @brief Returns the canonical destination name. */
             const std::string &dest() const;
 
         private:
+            /** @brief Converts an option name into a canonical destination token. */
             static std::string sanitize_dest(const std::string &name);
+            /** @brief Converts a typed value to a string. */
             template <typename T>
             static std::string to_string(const T &value);
+            /** @brief Returns whether this argument stores values. */
             bool takes_value() const;
+            /** @brief Returns whether this argument accepts unlimited values. */
             bool is_unbounded() const;
 
         private:
-            Kind m_Kind{Kind::Positional};
-            ActionType m_Action{ActionType::Store};
+            Kind m_Kind{Kind::Positional};          ///< Positional or optional argument.
+            ActionType m_Action{ActionType::Store}; ///< Selected action behavior.
 
-            std::vector<std::string> m_OptionNames;
-            std::string m_Dest;
-            std::string m_Help;
-            std::string m_Metavar;
+            std::vector<std::string> m_OptionNames; ///< Option aliases such as -v and --verbose.
+            std::string m_Dest;                     ///< Canonical destination name.
+            std::string m_Help;                     ///< Help string.
+            std::string m_Metavar;                  ///< Placeholder shown in help.
 
-            std::size_t m_NargsMin{1};
-            std::size_t m_NargsMax{1};
+            std::size_t m_NargsMin{1}; ///< Minimum number of values accepted.
+            std::size_t m_NargsMax{1}; ///< Maximum number of values accepted.
 
-            bool m_Required{false};
+            bool m_Required{false}; ///< Whether the argument is required.
 
-            std::vector<std::string> m_DefaultValues;
-            std::optional<std::string> m_ImplicitValue;
-            std::optional<std::string> m_EnvVar;
-            std::vector<std::string> m_Choices;
-            bool m_Hidden{false};
+            std::vector<std::string> m_DefaultValues;   ///< Default fallback values.
+            std::optional<std::string> m_ImplicitValue; ///< Implicit value when no explicit value is given.
+            std::optional<std::string> m_EnvVar;        ///< Environment variable fallback name.
+            std::vector<std::string> m_Choices;         ///< Allowed values list.
+            bool m_Hidden{false};                       ///< Hidden from help output.
 
-            std::vector<std::string> m_Values;
-            std::size_t m_Occurrences{0};
+            std::vector<std::string> m_Values; ///< Parsed values.
+            std::size_t m_Occurrences{0};      ///< Number of times the argument appeared.
         };
 
     public:
+        /**
+         * @brief Constructs an argument parser.
+         * @param program Program name.
+         * @param description Parser description.
+         * @param epilog Footer text shown after help output.
+         */
         ArgumentParser(std::string program = "", std::string description = "", std::string epilog = "");
+        /** @brief Returns a mutable reference to the program name. */
         std::string &program();
+        /** @brief Sets the program name. */
         ArgumentParser &program(std::string program);
+        /** @brief Returns a mutable reference to the usage string. */
         std::string &usage();
+        /** @brief Sets the usage string. */
         ArgumentParser &usage(std::string usage);
+        /** @brief Returns a mutable reference to the epilog string. */
         std::string &epilog();
+        /** @brief Sets the epilog string. */
         ArgumentParser &epilog(std::string epilog);
+        /** @brief Returns the internal help formatter. */
         HelpFormatter &formatter();
+        /** @brief Replaces the internal help formatter. */
         ArgumentParser &formatter(HelpFormatter formatter);
+        /** @brief Returns a mutable reference to the description string. */
         std::string &description();
+        /** @brief Returns the current description string. */
         const std::string &description() const;
+        /** @brief Sets the description string. */
         ArgumentParser &description(std::string description);
 
         /**
@@ -679,8 +900,14 @@ namespace argparser
          * @brief Gets a const reference to the HelpFormatter
          * @return Const reference to the internal HelpFormatter
          */
+        /** @brief Returns a read-only reference to the current help formatter. */
         const HelpFormatter &get_formatter() const;
 
+        /**
+         * @brief Adds a positional or optional argument.
+         * @param names One or more argument names or aliases.
+         * @return Reference to the newly created argument.
+         */
         template <typename... Names>
         Argument &add_argument(const Names &...names);
 
@@ -695,73 +922,98 @@ namespace argparser
         /**
          * @brief Parse arguments and throw on unknown options.
          */
+        /** @brief Parses arguments and throws on unknown tokens. */
         const Namespace &parse_args(int argc, char **argv);
 
         /**
          * @brief Parse arguments and preserve unknown options/tokens.
          */
+        /** @brief Parses arguments and stores unknown tokens for later inspection. */
         const Namespace &parse_known_args(int argc, char **argv);
 
         /**
          * @brief Unknown options/tokens captured by parse_known_args().
          */
+        /** @brief Returns the unknown arguments captured by parse_known_args(). */
         const std::vector<std::string> &unknown_args() const;
 
         /**
          * @brief Prints the help message
          * @param stream to write to (default=stdout).
          */
+        /** @brief Writes the generated help text to a stream. */
         void print_help(std::ostream &stream = std::cout) const;
 
         /**
          * @brief Prints the usage message
          * @param stream to write to (default=stdout).
          */
+        /** @brief Writes the generated usage text to a stream. */
         void print_usage(std::ostream &stream = std::cout) const;
 
     private:
+        /** @brief Returns true for numeric tokens that should be treated as values. */
         static bool is_negative_number_token(const std::string &token);
+        /** @brief Determines whether a token should be parsed as an option. */
         bool should_treat_as_optional(const std::string &token) const;
+        /** @brief Converts text to upper-case. */
         static std::string to_upper(std::string text);
+        /** @brief Builds a display string for an argument. */
         static std::string argument_display(const Argument &arg);
+        /** @brief Finds a registered option or throws. */
         Argument &lookup_option(const std::string &name);
+        /** @brief Finds a registered option or returns nullptr. */
         Argument *try_lookup_option(const std::string &name);
+        /** @brief Applies the configured action for a parsed argument. */
         void apply_action(Argument &arg, const std::vector<std::string> &values);
         std::vector<std::string> collect_option_values(Argument &arg,
                                                        int &index,
                                                        int argc,
                                                        char **argv,
                                                        std::optional<std::string> first);
+        /** @brief Shared parse routine used by strict and permissive modes. */
         void parse_impl(int argc, char **argv, bool allow_unknown);
 
+        /** @brief Parses a long option token. */
         void consume_long_option(const std::string &token, int &index, int argc, char **argv, bool allow_unknown);
+        /** @brief Parses a short option cluster token. */
         void consume_short_cluster(const std::string &token, int &index, int argc, char **argv, bool allow_unknown);
+        /** @brief Assigns positional tokens to positional arguments. */
         void assign_positionals(const std::vector<std::string> &tokens);
+        /** @brief Applies defaults, environment values, and validation rules. */
         void finalize_and_validate();
+        /** @brief Writes the parsed state into the namespace object. */
         void build_namespace();
 
     private:
-        std::string m_Usage;
-        std::string m_Epilog;
-        std::string m_Program;
-        std::string m_Description;
+        std::string m_Usage;       ///< User-configured usage string.
+        std::string m_Epilog;      ///< Footer text.
+        std::string m_Program;     ///< Program name.
+        std::string m_Description; ///< Parser description.
 
-        bool m_AddHelp{true};
+        bool m_AddHelp{true}; ///< Whether the built-in help option is added.
 
-        std::vector<Argument> m_Arguments;
-        std::vector<std::size_t> m_Positionals;
-        std::unordered_map<std::string, std::size_t> m_OptionLookup;
-        std::unordered_map<std::string, std::unique_ptr<ArgumentParser>> m_Subcommands;
-        std::vector<std::string> m_UnknownArgs;
+        std::vector<Argument> m_Arguments;                                              ///< All registered arguments.
+        std::vector<std::size_t> m_Positionals;                                         ///< Indices of positional arguments.
+        std::unordered_map<std::string, std::size_t> m_OptionLookup;                    ///< Lookup table for option aliases.
+        std::unordered_map<std::string, std::unique_ptr<ArgumentParser>> m_Subcommands; ///< Registered subcommands.
+        std::vector<std::string> m_UnknownArgs;                                         ///< Unknown tokens captured during parsing.
 
-        Namespace m_Namespace;
-        HelpFormatter m_HelpFormatter;
+        Namespace m_Namespace;         ///< Last parsed namespace.
+        HelpFormatter m_HelpFormatter; ///< Formatter used for help and usage.
     };
 
-    using Argparser = ArgumentParser;
+    /** @brief Alias for HelpFormatter. */
     using Formatter = HelpFormatter;
+    /** @brief Alias for ArgumentParser. */
+    using Argparser = ArgumentParser;
+    /** @brief Alias for HelpFormatter::Color. */
+    using Color = HelpFormatter::Color;
+    /** @brief Alias for HelpFormatter::Section. */
     using Section = HelpFormatter::Section;
+    /** @brief Alias for HelpFormatter::Alignment. */
     using Alignment = HelpFormatter::Alignment;
+    /** @brief Alias for HelpFormatter::ColorTheme. */
     using ColorTheme = HelpFormatter::ColorTheme;
 
 } // namespace argparser
@@ -781,45 +1033,6 @@ namespace argparser
     //-----------------------------------------------------------------------------
     // - HelpFormatter()
     //-----------------------------------------------------------------------------
-
-    HelpFormatter::Section::Section(const std::string &title, const std::string &description,
-                                    Type type)
-        : m_Title(title), m_Description(description), m_Type(type) {}
-
-    HelpFormatter::Section &HelpFormatter::Section::add_item(const std::string &option, const std::string &metavar,
-                                                             const std::string &help, bool required)
-    {
-        m_Items.push_back({option, metavar, help, required});
-        return *this;
-    }
-
-    HelpFormatter::Section &HelpFormatter::Section::add_text(const std::string &text)
-    {
-        m_Texts.push_back(text);
-        return *this;
-    }
-
-    HelpFormatter::Section &HelpFormatter::Section::add_example(const std::string &command, const std::string &description)
-    {
-        m_Examples.push_back({command, description});
-        return *this;
-    }
-
-    bool HelpFormatter::Section::visible()
-    {
-        return m_Visible;
-    }
-
-    HelpFormatter::Section &HelpFormatter::Section::visible(bool visible)
-    {
-        m_Visible = visible;
-        return *this;
-    }
-
-    const std::string &HelpFormatter::Section::title() const { return m_Title; }
-    const std::string &HelpFormatter::Section::description() const { return m_Description; }
-    HelpFormatter::Section::Type HelpFormatter::Section::type() const { return m_Type; }
-    bool HelpFormatter::Section::visible() const { return m_Visible; }
 
     HelpFormatter::HelpFormatter(size_t width, const std::string &prog_name)
         : m_Width(width), m_Program(prog_name), m_Theme(ColorTheme()),
@@ -1153,370 +1366,55 @@ namespace argparser
     }
 
     //-----------------------------------------------------------------------------
-    // [Class] Namespace
+    // [Class] Section
     //-----------------------------------------------------------------------------
-    // - Namespace()
+    // - Section()
     //-----------------------------------------------------------------------------
 
-    Namespace::Namespace(const Namespace &other)
-        : m_Data(other.m_Data),
-          m_Provided(other.m_Provided),
-          m_Subcommand(other.m_Subcommand)
+    HelpFormatter::Section::Section(const std::string &title, const std::string &description,
+                                    Type type)
+        : m_Title(title), m_Description(description), m_Type(type) {}
+
+    HelpFormatter::Section &HelpFormatter::Section::add_item(const std::string &option, const std::string &metavar,
+                                                             const std::string &help, bool required)
     {
-        if (other.m_SubcommandNamespace)
-        {
-            m_SubcommandNamespace = std::make_unique<Namespace>(*other.m_SubcommandNamespace);
-        }
-    }
-
-    Namespace &Namespace::operator=(const Namespace &other)
-    {
-        if (this == &other)
-        {
-            return *this;
-        }
-
-        m_Data = other.m_Data;
-        m_Provided = other.m_Provided;
-        m_Subcommand = other.m_Subcommand;
-
-        if (other.m_SubcommandNamespace)
-        {
-            m_SubcommandNamespace = std::make_unique<Namespace>(*other.m_SubcommandNamespace);
-        }
-        else
-        {
-            m_SubcommandNamespace.reset();
-        }
-
+        m_Items.push_back({option, metavar, help, required});
         return *this;
     }
 
-    bool Namespace::has(const std::string &name) const
+    HelpFormatter::Section &HelpFormatter::Section::add_text(const std::string &text)
     {
-        return m_Data.find(name) != m_Data.end();
+        m_Texts.push_back(text);
+        return *this;
     }
 
-    bool Namespace::provided(const std::string &name) const
+    HelpFormatter::Section &HelpFormatter::Section::add_example(const std::string &command, const std::string &description)
     {
-        const auto it = m_Provided.find(name);
-        return it != m_Provided.end() && it->second;
+        m_Examples.push_back({command, description});
+        return *this;
     }
 
-    const std::vector<std::string> &Namespace::raw_values(const std::string &name) const
+    bool HelpFormatter::Section::visible()
     {
-        const auto it = m_Data.find(name);
-        if (it == m_Data.end())
-        {
-
-#ifndef ARGPARSER_NO_EXCEPTIONS
-            throw ParseError("unknown argument: " + name);
-#endif // ARGPARSER_NO_EXCEPTIONS
-        }
-        return it->second;
+        return m_Visible;
     }
 
-    bool Namespace::has_subcommand() const
+    HelpFormatter::Section &HelpFormatter::Section::visible(bool visible)
     {
-        return !m_Subcommand.empty();
+        m_Visible = visible;
+        return *this;
     }
 
-    const std::string &Namespace::subcommand() const
-    {
-        return m_Subcommand;
-    }
-
-    const Namespace &Namespace::subcommand_namespace() const
-    {
-        if (!m_SubcommandNamespace)
-        {
-#ifndef ARGPARSER_NO_EXCEPTIONS
-            throw ParseError("subcommand namespace not available");
-#endif // ARGPARSER_NO_EXCEPTIONS
-        }
-        return *m_SubcommandNamespace;
-    }
-
-    template <typename T>
-    T Namespace::get(const std::string &name) const
-    {
-        const auto &vals = raw_values(name);
-        if (vals.empty())
-        {
-#ifndef ARGPARSER_NO_EXCEPTIONS
-            throw ArgumentError("argument has no value: " + name);
-#endif // ARGPARSER_NO_EXCEPTIONS
-        }
-        return convert<T>(vals.front());
-    }
-
-    template <typename T>
-    std::vector<T> Namespace::getlist(const std::string &name) const
-    {
-        const auto &vals = raw_values(name);
-        std::vector<T> out;
-        out.reserve(vals.size());
-        for (const auto &v : vals)
-        {
-            out.emplace_back(convert<T>(v));
-        }
-        return out;
-    }
-
-    template <typename T>
-    T Namespace::convert(const std::string &value)
-    {
-        if constexpr (std::is_same<T, std::string>::value)
-        {
-            return value;
-        }
-        else if constexpr (std::is_same<T, bool>::value)
-        {
-            std::string lowered = value;
-            std::transform(lowered.begin(), lowered.end(), lowered.begin(),
-                           [](unsigned char c)
-                           { return static_cast<char>(std::tolower(c)); });
-            if (lowered == "1" || lowered == "true" || lowered == "yes" || lowered == "on")
-            {
-                return true;
-            }
-            if (lowered == "0" || lowered == "false" || lowered == "no" || lowered == "off")
-            {
-                return false;
-            }
-#ifndef ARGPARSER_NO_EXCEPTIONS
-            throw ArgumentError("cannot convert value to bool: " + value);
-#endif // ARGPARSER_NO_EXCEPTIONS
-        }
-        else if constexpr (std::is_integral<T>::value)
-        {
-            std::istringstream iss(value);
-            T parsed{};
-            iss >> parsed;
-            if (iss.fail() || !iss.eof())
-            {
-#ifndef ARGPARSER_NO_EXCEPTIONS
-                throw ArgumentError("cannot convert value to integer: " + value);
-#endif // ARGPARSER_NO_EXCEPTIONS
-            }
-            return parsed;
-        }
-        else if constexpr (std::is_floating_point<T>::value)
-        {
-            std::istringstream iss(value);
-            T parsed{};
-            iss >> parsed;
-            if (iss.fail() || !iss.eof())
-            {
-#ifndef ARGPARSER_NO_EXCEPTIONS
-                throw ArgumentError("cannot convert value to number: " + value);
-#endif // ARGPARSER_NO_EXCEPTIONS
-            }
-            return parsed;
-        }
-        else
-        {
-            static_assert(!sizeof(T *), "Unsupported conversion type");
-        }
-    }
+    const std::string &HelpFormatter::Section::title() const { return m_Title; }
+    const std::string &HelpFormatter::Section::description() const { return m_Description; }
+    HelpFormatter::Section::Type HelpFormatter::Section::type() const { return m_Type; }
+    bool HelpFormatter::Section::visible() const { return m_Visible; }
 
     //-----------------------------------------------------------------------------
     // [Class] ArgumentParser
     //-----------------------------------------------------------------------------
     // - ArgumentParser()
     //-----------------------------------------------------------------------------
-
-    ArgumentParser::Argument &ArgumentParser::Argument::help(const std::string &text)
-    {
-        m_Help = text;
-        return *this;
-    };
-
-    ArgumentParser::Argument &ArgumentParser::Argument::hidden(bool value)
-    {
-        m_Hidden = value;
-        return *this;
-    }
-
-    ArgumentParser::Argument &ArgumentParser::Argument::required(bool value)
-    {
-        m_Required = value;
-        return *this;
-    }
-
-    ArgumentParser::Argument &ArgumentParser::Argument::metavar(const std::string &text)
-    {
-        m_Metavar = text;
-        return *this;
-    }
-
-    ArgumentParser::Argument &ArgumentParser::Argument::action(const std::string &name)
-    {
-        if (name == "store")
-        {
-            m_Action = ActionType::Store;
-            m_NargsMin = 1;
-            m_NargsMax = 1;
-        }
-        else if (name == "store_true")
-        {
-            m_Action = ActionType::StoreTrue;
-            m_NargsMin = 0;
-            m_NargsMax = 0;
-        }
-        else if (name == "store_false")
-        {
-            m_Action = ActionType::StoreFalse;
-            m_NargsMin = 0;
-            m_NargsMax = 0;
-        }
-        else if (name == "append")
-        {
-            m_Action = ActionType::Append;
-            m_NargsMin = 1;
-            m_NargsMax = 1;
-        }
-        else if (name == "count")
-        {
-            m_Action = ActionType::Count;
-            m_NargsMin = 0;
-            m_NargsMax = 0;
-        }
-        else if (name == "help")
-        {
-            m_Action = ActionType::Help;
-            m_NargsMin = 0;
-            m_NargsMax = 0;
-        }
-        else
-        {
-#ifndef ARGPARSER_NO_EXCEPTIONS
-            throw ArgumentError("unknown action: " + name);
-#endif // ARGPARSER_NO_EXCEPTIONS
-        }
-        return *this;
-    }
-
-    ArgumentParser::Argument &ArgumentParser::Argument::nargs(std::size_t count)
-    {
-        m_NargsMin = count;
-        m_NargsMax = count;
-        return *this;
-    }
-
-    ArgumentParser::Argument &ArgumentParser::Argument::nargs(char pattern)
-    {
-        if (pattern == '?')
-        {
-            m_NargsMin = 0;
-            m_NargsMax = 1;
-        }
-        else if (pattern == '*')
-        {
-            m_NargsMin = 0;
-            m_NargsMax = std::numeric_limits<std::size_t>::max();
-        }
-        else if (pattern == '+')
-        {
-            m_NargsMin = 1;
-            m_NargsMax = std::numeric_limits<std::size_t>::max();
-        }
-        else
-        {
-#ifndef ARGPARSER_NO_EXCEPTIONS
-            throw ParseError("unknown nargs pattern");
-#endif // ARGPARSER_NO_EXCEPTIONS
-        }
-        return *this;
-    }
-
-    template <typename T>
-    ArgumentParser::Argument &ArgumentParser::Argument::default_value(T value)
-    {
-        m_DefaultValues = {to_string(value)};
-        return *this;
-    }
-
-    ArgumentParser::Argument &ArgumentParser::Argument::default_values(std::initializer_list<std::string> values)
-    {
-        m_DefaultValues.assign(values.begin(), values.end());
-        return *this;
-    }
-
-    template <typename T>
-    ArgumentParser::Argument &ArgumentParser::Argument::implicit_value(T value)
-    {
-        m_ImplicitValue = to_string(value);
-        return *this;
-    }
-
-    ArgumentParser::Argument &ArgumentParser::Argument::env(const std::string &name)
-    {
-        m_EnvVar = name;
-        return *this;
-    }
-
-    ArgumentParser::Argument &ArgumentParser::Argument::choices(std::initializer_list<std::string> values)
-    {
-        m_Choices.assign(values.begin(), values.end());
-        return *this;
-    }
-
-    const std::string &ArgumentParser::Argument::dest() const
-    {
-        return m_Dest;
-    }
-
-    std::string ArgumentParser::Argument::sanitize_dest(const std::string &name)
-    {
-        std::string out;
-        out.reserve(name.size());
-        for (char c : name)
-        {
-            if (c == '-')
-            {
-                out.push_back('_');
-            }
-            else
-            {
-                out.push_back(c);
-            }
-        }
-        return out;
-    }
-
-    template <typename T>
-    std::string ArgumentParser::Argument::to_string(const T &value)
-    {
-        if constexpr (std::is_same<T, std::string>::value)
-        {
-            return value;
-        }
-        else if constexpr (std::is_same<T, const char *>::value)
-        {
-            return std::string(value);
-        }
-        else if constexpr (std::is_same<T, bool>::value)
-        {
-            return value ? "true" : "false";
-        }
-        else
-        {
-            std::ostringstream oss;
-            oss << value;
-            return oss.str();
-        }
-    }
-
-    bool ArgumentParser::Argument::takes_value() const
-    {
-        return m_NargsMax > 0;
-    }
-
-    bool ArgumentParser::Argument::is_unbounded() const
-    {
-        return m_NargsMax == std::numeric_limits<std::size_t>::max();
-    }
 
     ArgumentParser::ArgumentParser(std::string program, std::string description, std::string epilog)
         : m_Program(std::move(program)),
@@ -1806,13 +1704,13 @@ namespace argparser
         return *it->second;
     }
 
-    const Namespace &ArgumentParser::parse_args(int argc, char **argv)
+    const ArgumentParser::Namespace &ArgumentParser::parse_args(int argc, char **argv)
     {
         parse_impl(argc, argv, false);
         return m_Namespace;
     }
 
-    const Namespace &ArgumentParser::parse_known_args(int argc, char **argv)
+    const ArgumentParser::Namespace &ArgumentParser::parse_known_args(int argc, char **argv)
     {
         parse_impl(argc, argv, true);
         return m_Namespace;
@@ -2373,6 +2271,371 @@ namespace argparser
             m_Namespace.m_Data[arg.m_Dest] = arg.m_Values;
             m_Namespace.m_Provided[arg.m_Dest] = arg.m_Occurrences > 0;
         }
+    }
+
+    //-----------------------------------------------------------------------------
+    // [Class] Namespace
+    //-----------------------------------------------------------------------------
+    // - Namespace()
+    //-----------------------------------------------------------------------------
+
+    ArgumentParser::Namespace::Namespace(const Namespace &other)
+        : m_Data(other.m_Data),
+          m_Provided(other.m_Provided),
+          m_Subcommand(other.m_Subcommand)
+    {
+        if (other.m_SubcommandNamespace)
+        {
+            m_SubcommandNamespace = std::make_unique<Namespace>(*other.m_SubcommandNamespace);
+        }
+    }
+
+    ArgumentParser::Namespace &ArgumentParser::Namespace::operator=(const Namespace &other)
+    {
+        if (this == &other)
+        {
+            return *this;
+        }
+
+        m_Data = other.m_Data;
+        m_Provided = other.m_Provided;
+        m_Subcommand = other.m_Subcommand;
+
+        if (other.m_SubcommandNamespace)
+        {
+            m_SubcommandNamespace = std::make_unique<ArgumentParser::Namespace>(*other.m_SubcommandNamespace);
+        }
+        else
+        {
+            m_SubcommandNamespace.reset();
+        }
+
+        return *this;
+    }
+
+    bool ArgumentParser::Namespace::has(const std::string &name) const
+    {
+        return m_Data.find(name) != m_Data.end();
+    }
+
+    bool ArgumentParser::Namespace::provided(const std::string &name) const
+    {
+        const auto it = m_Provided.find(name);
+        return it != m_Provided.end() && it->second;
+    }
+
+    const std::vector<std::string> &ArgumentParser::Namespace::raw_values(const std::string &name) const
+    {
+        const auto it = m_Data.find(name);
+        if (it == m_Data.end())
+        {
+
+#ifndef ARGPARSER_NO_EXCEPTIONS
+            throw ParseError("unknown argument: " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
+        }
+        return it->second;
+    }
+
+    bool ArgumentParser::Namespace::has_subcommand() const
+    {
+        return !m_Subcommand.empty();
+    }
+
+    const std::string &ArgumentParser::Namespace::subcommand() const
+    {
+        return m_Subcommand;
+    }
+
+    const ArgumentParser::Namespace &ArgumentParser::Namespace::subcommand_namespace() const
+    {
+        if (!m_SubcommandNamespace)
+        {
+#ifndef ARGPARSER_NO_EXCEPTIONS
+            throw ParseError("subcommand namespace not available");
+#endif // ARGPARSER_NO_EXCEPTIONS
+        }
+        return *m_SubcommandNamespace;
+    }
+
+    template <typename T>
+    T ArgumentParser::Namespace::get(const std::string &name) const
+    {
+        const auto &vals = raw_values(name);
+        if (vals.empty())
+        {
+#ifndef ARGPARSER_NO_EXCEPTIONS
+            throw ArgumentError("argument has no value: " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
+        }
+        return convert<T>(vals.front());
+    }
+
+    template <typename T>
+    std::vector<T> ArgumentParser::Namespace::getlist(const std::string &name) const
+    {
+        const auto &vals = raw_values(name);
+        std::vector<T> out;
+        out.reserve(vals.size());
+        for (const auto &v : vals)
+        {
+            out.emplace_back(convert<T>(v));
+        }
+        return out;
+    }
+
+    template <typename T>
+    T ArgumentParser::Namespace::convert(const std::string &value)
+    {
+        if constexpr (std::is_same<T, std::string>::value)
+        {
+            return value;
+        }
+        else if constexpr (std::is_same<T, bool>::value)
+        {
+            std::string lowered = value;
+            std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                           [](unsigned char c)
+                           { return static_cast<char>(std::tolower(c)); });
+            if (lowered == "1" || lowered == "true" || lowered == "yes" || lowered == "on")
+            {
+                return true;
+            }
+            if (lowered == "0" || lowered == "false" || lowered == "no" || lowered == "off")
+            {
+                return false;
+            }
+#ifndef ARGPARSER_NO_EXCEPTIONS
+            throw ArgumentError("cannot convert value to bool: " + value);
+#endif // ARGPARSER_NO_EXCEPTIONS
+        }
+        else if constexpr (std::is_integral<T>::value)
+        {
+            std::istringstream iss(value);
+            T parsed{};
+            iss >> parsed;
+            if (iss.fail() || !iss.eof())
+            {
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                throw ArgumentError("cannot convert value to integer: " + value);
+#endif // ARGPARSER_NO_EXCEPTIONS
+            }
+            return parsed;
+        }
+        else if constexpr (std::is_floating_point<T>::value)
+        {
+            std::istringstream iss(value);
+            T parsed{};
+            iss >> parsed;
+            if (iss.fail() || !iss.eof())
+            {
+#ifndef ARGPARSER_NO_EXCEPTIONS
+                throw ArgumentError("cannot convert value to number: " + value);
+#endif // ARGPARSER_NO_EXCEPTIONS
+            }
+            return parsed;
+        }
+        else
+        {
+            static_assert(!sizeof(T *), "Unsupported conversion type");
+        }
+    }
+
+    //-----------------------------------------------------------------------------
+    // [Class] Argument
+    //-----------------------------------------------------------------------------
+    //-----------------------------------------------------------------------------
+
+    ArgumentParser::Argument &ArgumentParser::Argument::help(const std::string &text)
+    {
+        m_Help = text;
+        return *this;
+    };
+
+    ArgumentParser::Argument &ArgumentParser::Argument::hidden(bool value)
+    {
+        m_Hidden = value;
+        return *this;
+    }
+
+    ArgumentParser::Argument &ArgumentParser::Argument::required(bool value)
+    {
+        m_Required = value;
+        return *this;
+    }
+
+    ArgumentParser::Argument &ArgumentParser::Argument::metavar(const std::string &text)
+    {
+        m_Metavar = text;
+        return *this;
+    }
+
+    ArgumentParser::Argument &ArgumentParser::Argument::action(const std::string &name)
+    {
+        if (name == "store")
+        {
+            m_Action = ActionType::Store;
+            m_NargsMin = 1;
+            m_NargsMax = 1;
+        }
+        else if (name == "store_true")
+        {
+            m_Action = ActionType::StoreTrue;
+            m_NargsMin = 0;
+            m_NargsMax = 0;
+        }
+        else if (name == "store_false")
+        {
+            m_Action = ActionType::StoreFalse;
+            m_NargsMin = 0;
+            m_NargsMax = 0;
+        }
+        else if (name == "append")
+        {
+            m_Action = ActionType::Append;
+            m_NargsMin = 1;
+            m_NargsMax = 1;
+        }
+        else if (name == "count")
+        {
+            m_Action = ActionType::Count;
+            m_NargsMin = 0;
+            m_NargsMax = 0;
+        }
+        else if (name == "help")
+        {
+            m_Action = ActionType::Help;
+            m_NargsMin = 0;
+            m_NargsMax = 0;
+        }
+        else
+        {
+#ifndef ARGPARSER_NO_EXCEPTIONS
+            throw ArgumentError("unknown action: " + name);
+#endif // ARGPARSER_NO_EXCEPTIONS
+        }
+        return *this;
+    }
+
+    ArgumentParser::Argument &ArgumentParser::Argument::nargs(std::size_t count)
+    {
+        m_NargsMin = count;
+        m_NargsMax = count;
+        return *this;
+    }
+
+    ArgumentParser::Argument &ArgumentParser::Argument::nargs(char pattern)
+    {
+        if (pattern == '?')
+        {
+            m_NargsMin = 0;
+            m_NargsMax = 1;
+        }
+        else if (pattern == '*')
+        {
+            m_NargsMin = 0;
+            m_NargsMax = std::numeric_limits<std::size_t>::max();
+        }
+        else if (pattern == '+')
+        {
+            m_NargsMin = 1;
+            m_NargsMax = std::numeric_limits<std::size_t>::max();
+        }
+        else
+        {
+#ifndef ARGPARSER_NO_EXCEPTIONS
+            throw ParseError("unknown nargs pattern");
+#endif // ARGPARSER_NO_EXCEPTIONS
+        }
+        return *this;
+    }
+
+    template <typename T>
+    ArgumentParser::Argument &ArgumentParser::Argument::default_value(T value)
+    {
+        m_DefaultValues = {to_string(value)};
+        return *this;
+    }
+
+    ArgumentParser::Argument &ArgumentParser::Argument::default_values(std::initializer_list<std::string> values)
+    {
+        m_DefaultValues.assign(values.begin(), values.end());
+        return *this;
+    }
+
+    template <typename T>
+    ArgumentParser::Argument &ArgumentParser::Argument::implicit_value(T value)
+    {
+        m_ImplicitValue = to_string(value);
+        return *this;
+    }
+
+    ArgumentParser::Argument &ArgumentParser::Argument::env(const std::string &name)
+    {
+        m_EnvVar = name;
+        return *this;
+    }
+
+    ArgumentParser::Argument &ArgumentParser::Argument::choices(std::initializer_list<std::string> values)
+    {
+        m_Choices.assign(values.begin(), values.end());
+        return *this;
+    }
+
+    const std::string &ArgumentParser::Argument::dest() const
+    {
+        return m_Dest;
+    }
+
+    std::string ArgumentParser::Argument::sanitize_dest(const std::string &name)
+    {
+        std::string out;
+        out.reserve(name.size());
+        for (char c : name)
+        {
+            if (c == '-')
+            {
+                out.push_back('_');
+            }
+            else
+            {
+                out.push_back(c);
+            }
+        }
+        return out;
+    }
+
+    template <typename T>
+    std::string ArgumentParser::Argument::to_string(const T &value)
+    {
+        if constexpr (std::is_same<T, std::string>::value)
+        {
+            return value;
+        }
+        else if constexpr (std::is_same<T, const char *>::value)
+        {
+            return std::string(value);
+        }
+        else if constexpr (std::is_same<T, bool>::value)
+        {
+            return value ? "true" : "false";
+        }
+        else
+        {
+            std::ostringstream oss;
+            oss << value;
+            return oss.str();
+        }
+    }
+
+    bool ArgumentParser::Argument::takes_value() const
+    {
+        return m_NargsMax > 0;
+    }
+
+    bool ArgumentParser::Argument::is_unbounded() const
+    {
+        return m_NargsMax == std::numeric_limits<std::size_t>::max();
     }
 
 } // namespace argparser

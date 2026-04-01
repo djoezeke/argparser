@@ -107,6 +107,35 @@ int main()
         assert(ns.subcommand_namespace().get<std::string>("mode") == "safe");
     }
 
+    {
+        argparser::HelpFormatter fmt(60, "sample");
+        fmt.description("A small formatter test.")
+            .epilog("done")
+            .line_separator("-")
+            .format(argparser::HelpFormatter::Format::Plain);
+
+        auto &section = fmt.add_section("options");
+        section.add_item("-v, --verbose", "", "enable verbose mode", false);
+
+        const auto help = fmt.format_help();
+        assert(help.find("usage:") != std::string::npos);
+        assert(help.find("options:") != std::string::npos);
+        assert(help.find("enable verbose mode") != std::string::npos);
+        assert(help.find("done") != std::string::npos);
+    }
+
+    {
+        argparser::ArgumentParser parser("tool", "docs");
+        parser.add_argument("--mode").choices({"fast", "safe"}).default_value("fast");
+        parser.add_argument("--feature").nargs('?').implicit_value("enabled");
+
+        const char *argv[] = {"tool", "--feature"};
+        const auto &ns = parser.parse_args(2, const_cast<char **>(argv));
+
+        assert(ns.get<std::string>("mode") == "fast");
+        assert(ns.get<std::string>("feature") == "enabled");
+    }
+
     std::cout << "All argparser tests passed\n";
     return 0;
 }
